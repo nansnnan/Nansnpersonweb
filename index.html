@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>南山南的个人站</title>
+  <meta name="description" content="南山南的个人站 —— 快捷·实用·贴心">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-bg" aria-hidden="true"></div>
+    <div class="container hero-inner">
+      <p class="hero-eyebrow">PERSONAL SITE</p>
+      <h1 class="hero-title">南山南的个人站</h1>
+      <p class="hero-subtitle">快捷 · 实用 · 贴心</p>
+
+      <div class="search" role="search">
+        <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+        </svg>
+        <input
+          id="site-search"
+          type="search"
+          class="search-input"
+          placeholder="搜索站内内容，例如「二维码」"
+          autocomplete="off"
+          spellcheck="false"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="search-results"
+          aria-autocomplete="list"
+          aria-label="站内搜索"
+        >
+        <kbd class="search-kbd" aria-hidden="true">/</kbd>
+        <ul id="search-results" class="search-results" role="listbox" hidden></ul>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section id="functions" class="container section">
+      <div class="section-head">
+        <h2 class="section-title">功能区</h2>
+        <p class="section-desc">常用的快捷工具会陆续上线</p>
+      </div>
+
+      <div class="card-grid">
+        <article class="card" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="16" rx="2"></rect>
+              <circle cx="8.5" cy="9.5" r="1.5"></circle>
+              <path d="M21 15l-5-5L5 20"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">图片压缩</h3>
+          <p class="card-desc">在本地压缩图片，不上传服务器</p>
+          <span class="card-badge">即将上线</span>
+        </article>
+
+        <article class="card" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="14" y="3" width="7" height="7" rx="1"></rect>
+              <rect x="3" y="14" width="7" height="7" rx="1"></rect>
+              <path d="M14 14h3v3h-3zM18 18h3v3h-3z"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">二维码生成</h3>
+          <p class="card-desc">把文字或链接快速转成二维码</p>
+          <span class="card-badge">即将上线</span>
+        </article>
+
+        <article class="card" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H6a2 2 0 0 0-2 2v3M16 3h2a2 2 0 0 1 2 2v3M8 21H6a2 2 0 0 1-2-2v-3M16 21h2a2 2 0 0 0 2-2v-3"></path>
+              <path d="M9 9h6M9 15h6"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">文本对比</h3>
+          <p class="card-desc">逐行比对两段文字的差异</p>
+          <span class="card-badge">即将上线</span>
+        </article>
+
+        <article class="card" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="9"></circle>
+              <path d="M12 7v5l3 2"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">时间戳转换</h3>
+          <p class="card-desc">时间戳与日期格式互转</p>
+          <span class="card-badge">即将上线</span>
+        </article>
+
+        <article class="card" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12h4l3-8 4 16 3-8h4"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">单位换算</h3>
+          <p class="card-desc">长度、重量、温度等常用换算</p>
+          <span class="card-badge">即将上线</span>
+        </article>
+
+        <article class="card card-placeholder" tabindex="0">
+          <div class="card-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 5v14M5 12h14"></path>
+            </svg>
+          </div>
+          <h3 class="card-title">更多功能</h3>
+          <p class="card-desc">想到什么，就做什么</p>
+          <span class="card-badge">规划中</span>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <p>南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
