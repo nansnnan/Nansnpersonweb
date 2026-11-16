@@ -230,6 +230,7 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key !== '/' || event.metaKey || event.ctrlKey || event.altKey) return;
+    if (!changelog.hidden) return;
 
     const el = document.activeElement;
     const isTyping =
@@ -242,5 +243,59 @@
     event.preventDefault();
     input.focus();
     input.select();
+  });
+
+  /* ---------- Changelog modal ---------- */
+
+  const changelog = document.getElementById('changelog');
+  const changelogTrigger = document.getElementById('changelog-trigger');
+  let lastFocused = null;
+
+  function openChangelog() {
+    lastFocused = document.activeElement;
+    changelog.hidden = false;
+    document.body.classList.add('modal-open');
+    changelog.querySelector('.modal-close').focus();
+  }
+
+  function closeChangelog() {
+    if (changelog.hidden) return;
+    changelog.hidden = true;
+    document.body.classList.remove('modal-open');
+    if (lastFocused) lastFocused.focus();
+  }
+
+  changelogTrigger.addEventListener('click', openChangelog);
+
+  changelog.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close]')) closeChangelog();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (changelog.hidden) return;
+
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeChangelog();
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const focusables = changelog.querySelectorAll(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusables.length === 0) return;
+
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
 })();

@@ -125,9 +125,48 @@
 
   <footer class="footer">
     <div class="container footer-inner">
-      <p>南山南的个人站 · 快捷 · 实用 · 贴心</p>
+      <div class="footer-meta">
+        <span class="site-version">v1.0.0</span>
+        <button
+          id="changelog-trigger"
+          class="changelog-trigger"
+          type="button"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
     </div>
   </footer>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <article class="release">
+          <div class="release-head">
+            <h3 class="release-version">v1.0.0</h3>
+            <time class="release-date" datetime="2026-11-16">2026-11-16</time>
+          </div>
+          <ul class="release-list">
+            <li>站点正式上线，支持自定义域名与 HTTPS 访问。</li>
+            <li>新增站内搜索，输入关键词即可定位内容，支持匹配高亮、方向键选择与回车跳转。</li>
+            <li>搭建功能区框架，预留图片压缩、二维码生成、文本对比、时间戳转换、单位换算等工具位。</li>
+            <li>全站适配手机与桌面端，并跟随系统自动切换深色模式。</li>
+            <li>页脚新增版本号与更新公告入口。</li>
+          </ul>
+        </article>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
