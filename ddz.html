@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>斗地主发牌器 · 南山南的个人站</title>
+  <meta name="description" content="斗地主发牌器：随机发牌、指定炸弹牌型、随机底牌概率统计">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="tool-page">
+  <header class="tool-hero">
+    <div class="container">
+      <a class="back-link" href="index.html">← 返回首页</a>
+      <h1 class="tool-title">斗地主发牌器</h1>
+      <p class="tool-subtitle">随机发牌 · 指定炸弹 · 底牌统计</p>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <section class="tool-panel">
+      <div class="tool-actions">
+        <button id="deal-btn" class="btn btn-primary" type="button">随机发牌</button>
+        <button id="clear-btn" class="btn" type="button">清空</button>
+        <button class="btn" type="button" data-dialog-open="bottom-modal">随机底牌</button>
+      </div>
+
+      <div id="hands" class="hands" aria-live="polite">
+        <p class="hands-empty">点击「随机发牌」，生成三家手牌与底牌</p>
+      </div>
+
+      <div class="bomb-row">
+        <span class="bomb-label">指定炸弹</span>
+        <button class="btn btn-small" type="button" data-bomb="3">3 炸</button>
+        <button class="btn btn-small" type="button" data-bomb="4">4 炸</button>
+        <button class="btn btn-small" type="button" data-bomb="5">5 炸及以上</button>
+      </div>
+
+      <div id="stat" class="tool-stat" hidden></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="site-version" data-site-version></span>
+        <button
+          class="changelog-trigger"
+          type="button"
+          data-dialog-open="changelog"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <div id="bottom-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="bottom-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="bottom-title" class="modal-title">随机底牌统计</h2>
+        <button class="modal-close" type="button" aria-label="关闭底牌统计" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="bottom-actions">
+          <button class="btn btn-small" type="button" data-bottom="1">随机 1 次</button>
+          <button class="btn btn-small" type="button" data-bottom="10">随机 10 次</button>
+          <button class="btn btn-small" type="button" data-bottom="100">随机 100 次</button>
+          <button class="btn btn-small" type="button" data-bottom="1000">随机 1000 次</button>
+        </div>
+        <p id="bottom-hint" class="bottom-summary">选择抽样次数，统计每张底牌出现频率与特殊牌型。</p>
+        <div id="bottom-result" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="site.js"></script>
+  <script src="ddz.js"></script>
+</body>
+</html>
