@@ -1,9 +1,17 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.1';
+  const VERSION = 'v1.0.2';
 
   const RELEASES = [
+    {
+      version: 'v1.0.2',
+      date: '2026-11-16',
+      items: [
+        '新增「斗地主研讨」工具，可输入三家手牌，按标准规则校验牌型、出牌并记录过程。',
+        '功能区新增「斗地主」分类，将发牌器与研讨工具归入同一分组。'
+      ]
+    },
     {
       version: 'v1.0.1',
       date: '2026-11-16',

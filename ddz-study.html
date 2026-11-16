@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>斗地主研讨 · 南山南的个人站</title>
+  <meta name="description" content="斗地主研讨：输入三家手牌，按标准规则模拟出牌、校验牌型并记录过程">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="tool-hero">
+    <div class="container">
+      <a class="back-link" href="index.html">← 返回首页</a>
+      <h1 class="tool-title">斗地主研讨</h1>
+      <p class="tool-subtitle">输入三家手牌 · 标准牌型校验 · 出牌记录</p>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <section class="tool-panel">
+      <div id="setup" class="study-setup">
+        <div class="field">
+          <label class="field-label" for="lord">地主<span class="field-count">20 张</span></label>
+          <input id="lord" class="field-input" type="text" placeholder="例：3 4 5 T J Q K A 2 X D" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="field-label" for="player1">地主上家<span class="field-count">17 张</span></label>
+          <input id="player1" class="field-input" type="text" placeholder="输入地主上家的手牌" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="field">
+          <label class="field-label" for="player2">地主下家<span class="field-count">17 张</span></label>
+          <input id="player2" class="field-input" type="text" placeholder="输入地主下家的手牌" autocomplete="off" spellcheck="false">
+        </div>
+        <button id="start-btn" class="btn btn-primary btn-block" type="button">开始研讨</button>
+        <p class="field-hint">牌面用 3–2、T（10）、X（小王）、D（大王）表示，空格分隔。</p>
+        <p id="setup-tip" class="setup-tip" role="status"></p>
+      </div>
+
+      <div id="game" class="study-game" hidden>
+        <div class="study-seats">
+          <section id="seat1" class="seat">
+            <header class="seat-head">
+              <h4 class="seat-name">地主上家</h4>
+              <span class="seat-count">剩余 <span id="count1">0</span> 张</span>
+            </header>
+            <div id="cards1" class="seat-cards"></div>
+          </section>
+
+          <section id="seat2" class="seat">
+            <header class="seat-head">
+              <h4 class="seat-name">地主下家</h4>
+              <span class="seat-count">剩余 <span id="count2">0</span> 张</span>
+            </header>
+            <div id="cards2" class="seat-cards"></div>
+          </section>
+        </div>
+
+        <section id="seatLord" class="seat seat-lord">
+          <header class="seat-head">
+            <h4 class="seat-name">地主</h4>
+            <span class="seat-count">剩余 <span id="countLord">0</span> 张</span>
+          </header>
+          <div id="cardsLord" class="seat-cards"></div>
+        </section>
+
+        <div class="study-actions">
+          <button id="play-btn" class="btn btn-primary" type="button">出牌</button>
+          <button id="pass-btn" class="btn" type="button">不出</button>
+        </div>
+
+        <p id="tip" class="study-tip" role="status"></p>
+
+        <section class="study-record">
+          <h4 class="record-title">出牌记录</h4>
+          <div id="record" class="record-list"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="site-version" data-site-version></span>
+        <button
+          class="changelog-trigger"
+          type="button"
+          data-dialog-open="changelog"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="site.js"></script>
+  <script src="ddz-study.js"></script>
+</body>
+</html>
