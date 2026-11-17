@@ -19,6 +19,23 @@
   <main class="container tool-main">
     <section class="tool-panel">
       <div class="challenge-board">
+        <section class="challenge-profile">
+          <div class="profile-item">
+            <span class="profile-label">段位</span>
+            <strong id="rank-name" class="profile-value">橡木</strong>
+            <button class="mini-btn" type="button" data-dialog-open="rank-modal">段位表</button>
+          </div>
+          <div class="profile-item">
+            <span class="profile-label">积分</span>
+            <strong id="points-value" class="profile-value">0</strong>
+          </div>
+          <div class="profile-item">
+            <span class="profile-label">金币</span>
+            <strong id="coins-value" class="profile-value">100</strong>
+            <button id="claim-coins" class="mini-btn" type="button" hidden>+20 金币</button>
+          </div>
+        </section>
+
         <p class="challenge-round">第 <span id="round-num">1</span> 局 · 我方 <span id="round-my">0</span> 张 · 对手 <span id="round-opp">0</span> 张</p>
 
         <section class="challenge-side">
@@ -97,6 +114,29 @@
         </button>
       </header>
       <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="rank-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rank-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="rank-title" class="modal-title">段位表</h2>
+        <button class="modal-close" type="button" aria-label="关闭段位表" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <table class="rank-table">
+          <thead>
+            <tr><th>段位</th><th>积分区间</th></tr>
+          </thead>
+          <tbody id="rank-tbody"></tbody>
+        </table>
+        <p class="rank-note">段位由积分自动计算，积分可以为负数。</p>
+      </div>
     </div>
   </div>
 

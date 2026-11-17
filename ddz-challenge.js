@@ -5,6 +5,23 @@
   const MIN_HAND = 5;
   const MAX_HAND = 15;
   const AI_DELAY = 700;
+  const STORAGE_KEY = 'ddz-challenge-stats-v1';
+
+  const RANK_TIERS = [
+    { name: '橡木', min: -Infinity, max: 10 },
+    { name: '岩石', min: 11, max: 30 },
+    { name: '钢铁', min: 31, max: 60 },
+    { name: '青铜', min: 61, max: 120 },
+    { name: '白银', min: 121, max: 200 },
+    { name: '黄金', min: 201, max: 300 },
+    { name: '铂金', min: 301, max: 420 },
+    { name: '钻石', min: 421, max: 550 },
+    { name: '星耀', min: 551, max: 700 },
+    { name: '下界合金', min: 701, max: 1000 },
+    { name: '顶尖高手', min: 1001, max: 2000 },
+    { name: '神明', min: 2001, max: 3000 },
+    { name: '超神', min: 3001, max: Infinity }
+  ];
 
   const myCardsEl = document.getElementById('my-cards');
   const opponentCardsEl = document.getElementById('opponent-cards');
@@ -16,6 +33,11 @@
   const newBtn = document.getElementById('challenge-new');
   const turnBadge = document.getElementById('turn-badge');
   const opponentVisible = document.getElementById('opponent-visible');
+  const rankNameEl = document.getElementById('rank-name');
+  const pointsEl = document.getElementById('points-value');
+  const coinsEl = document.getElementById('coins-value');
+  const claimCoinsBtn = document.getElementById('claim-coins');
+  const rankTbody = document.getElementById('rank-tbody');
 
   const state = {
     me: [],
@@ -31,6 +53,83 @@
   };
 
   let aiTimer = null;
+  const profile = loadProfile();
+
+  function loadProfile() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return { points: 0, coins: 100 };
+
+      const data = JSON.parse(raw);
+      const points = Number.isFinite(data?.points) ? Math.trunc(data.points) : 0;
+      const coins = Number.isFinite(data?.coins) ? Math.max(0, Math.trunc(data.coins)) : 100;
+      return { points, coins };
+    } catch {
+      return { points: 0, coins: 100 };
+    }
+  }
+
+  function saveProfile() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    } catch {
+      // 浏览器禁用存储时仅保留当前会话数据
+    }
+  }
+
+  function randomInt(min, max) {
+    return min + Math.floor(Math.random() * (max - min + 1));
+  }
+
+  function getRank(points) {
+    return RANK_TIERS.find((tier) => points >= tier.min && points <= tier.max) || RANK_TIERS[0];
+  }
+
+  function rankRange(tier) {
+    const min = tier.min === -Infinity ? '-∞' : tier.min;
+    const max = tier.max === Infinity ? '∞' : tier.max;
+    return `${min} ～ ${max}`;
+  }
+
+  function buildRankTable() {
+    RANK_TIERS.forEach((tier) => {
+      const row = document.createElement('tr');
+      row.dataset.rank = tier.name;
+
+      const name = document.createElement('td');
+      name.textContent = tier.name;
+
+      const range = document.createElement('td');
+      range.textContent = rankRange(tier);
+
+      row.append(name, range);
+      rankTbody.append(row);
+    });
+  }
+
+  function renderProfile() {
+    const rank = getRank(profile.points);
+    rankNameEl.textContent = rank.name;
+    pointsEl.textContent = profile.points;
+    coinsEl.textContent = profile.coins;
+    claimCoinsBtn.hidden = profile.coins >= 10;
+
+    rankTbody.querySelectorAll('tr').forEach((row) => {
+      row.classList.toggle('is-current', row.dataset.rank === rank.name);
+    });
+  }
+
+  function updateRestartButton() {
+    const roundLocked = state.started && !state.over;
+    const noCoins = profile.coins < 10;
+
+    newBtn.disabled = roundLocked || noCoins;
+    newBtn.title = roundLocked
+      ? '本局进行中，打完这局后才能重新发牌'
+      : noCoins
+        ? '金币不足，请先领取免费金币'
+        : '';
+  }
 
   function createDeck() {
     const deck = [];
@@ -81,7 +180,7 @@
     recordEl.scrollTop = recordEl.scrollHeight;
   }
 
-  function newRound() {
+  function newRound(paid = false) {
     clearTimeout(aiTimer);
 
     state.round++;
@@ -101,7 +200,7 @@
 
     renderAll();
     updateRecord();
-    showTip(`第 ${state.round} 局：你 ${mySize} 张，对手 ${opponentSize} 张，你先出牌。`);
+    showTip(`第 ${state.round} 局：你 ${mySize} 张，对手 ${opponentSize} 张，你先出牌。${paid ? '（消耗 10 金币）' : ''}`);
   }
 
   function renderAll() {
@@ -115,13 +214,13 @@
     document.getElementById('round-my').textContent = state.me.length;
     document.getElementById('round-opp').textContent = state.opponent.length;
 
+    renderProfile();
+
     const myTurn = !state.over && state.turn === 'me';
     playBtn.disabled = !myTurn;
     passBtn.disabled = !myTurn;
 
-    const restartLocked = state.started && !state.over;
-    newBtn.disabled = restartLocked;
-    newBtn.title = restartLocked ? '本局进行中，打完这局后才能重新发牌' : '';
+    updateRestartButton();
 
     turnBadge.textContent = state.over
       ? '本局结束'
@@ -277,11 +376,24 @@
   function finish(winner) {
     state.over = true;
     clearTimeout(aiTimer);
+
+    const pointDelta = winner === 'me' ? randomInt(2, 10) : -randomInt(2, 10);
+    const coinDelta = winner === 'me' ? randomInt(1, 10) * 10 : -randomInt(1, 5) * 10;
+
+    profile.points += pointDelta;
+    const previousCoins = profile.coins;
+    profile.coins = Math.max(0, profile.coins + coinDelta);
+    const appliedCoins = profile.coins - previousCoins;
+    saveProfile();
+
     renderAll();
-    showTip(
-      winner === 'me' ? '你出完了所有手牌，挑战成功！' : '对手先出完牌，挑战失败。',
-      winner === 'me'
-    );
+
+    if (winner === 'me') {
+      showTip(`你出完了所有手牌，挑战成功！积分 +${pointDelta}，金币 +${appliedCoins}。`, true);
+    } else {
+      const coinText = appliedCoins === 0 ? '，金币不足未扣除' : `，金币 ${appliedCoins}`;
+      showTip(`对手先出完牌，挑战失败。积分 ${pointDelta}${coinText}。`);
+    }
   }
 
   playBtn.addEventListener('click', () => {
@@ -346,10 +458,31 @@
     scheduleAi();
   });
 
-  newBtn.addEventListener('click', () => {
+  function requestNewRound() {
     if (state.started && !state.over) return;
-    newRound();
+
+    if (profile.coins < 10) {
+      showTip('金币不足，请先领取免费金币。');
+      return;
+    }
+
+    profile.coins -= 10;
+    saveProfile();
+    newRound(true);
+  }
+
+  newBtn.addEventListener('click', requestNewRound);
+
+  claimCoinsBtn.addEventListener('click', () => {
+    if (profile.coins >= 10) return;
+
+    profile.coins += 20;
+    saveProfile();
+    renderProfile();
+    updateRestartButton();
+    showTip('已领取 20 金币。');
   });
+
   opponentVisible.addEventListener('change', renderOpponent);
 
   /* ---------- Move generation ---------- */
@@ -496,5 +629,6 @@
     return moves;
   }
 
+  buildRankTable();
   newRound();
 })();
