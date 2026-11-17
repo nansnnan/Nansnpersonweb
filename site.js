@@ -1,9 +1,17 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.4';
+  const VERSION = 'v1.0.5';
 
   const RELEASES = [
+    {
+      version: 'v1.0.5',
+      date: '2026-11-17',
+      items: [
+        '残局挑战双方手牌改为各自随机 5–15 张，允许双方张数不同。',
+        '对局进行中禁用「重新发牌」，仅在本方尚未出牌或本局结束后才能重新开始。'
+      ]
+    },
     {
       version: 'v1.0.4',
       date: '2026-11-17',

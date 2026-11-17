@@ -26,7 +26,7 @@
     selected: [],
     record: [],
     round: 0,
-    handSize: 0,
+    started: false,
     over: false
   };
 
@@ -85,21 +85,23 @@
     clearTimeout(aiTimer);
 
     state.round++;
-    state.handSize = MIN_HAND + Math.floor(Math.random() * (MAX_HAND - MIN_HAND + 1));
+    const mySize = MIN_HAND + Math.floor(Math.random() * (MAX_HAND - MIN_HAND + 1));
+    const opponentSize = MIN_HAND + Math.floor(Math.random() * (MAX_HAND - MIN_HAND + 1));
 
     const deck = shuffle(createDeck());
-    state.me = sortCards(deck.slice(0, state.handSize));
-    state.opponent = sortCards(deck.slice(state.handSize, state.handSize * 2));
+    state.me = sortCards(deck.slice(0, mySize));
+    state.opponent = sortCards(deck.slice(mySize, mySize + opponentSize));
     state.turn = 'me';
     state.lastPlay = null;
     state.lastCards = [];
     state.selected = [];
     state.record = [];
+    state.started = false;
     state.over = false;
 
     renderAll();
     updateRecord();
-    showTip(`第 ${state.round} 局：双方各 ${state.handSize} 张牌，你先出牌。`);
+    showTip(`第 ${state.round} 局：你 ${mySize} 张，对手 ${opponentSize} 张，你先出牌。`);
   }
 
   function renderAll() {
@@ -110,11 +112,16 @@
     document.getElementById('my-count').textContent = state.me.length;
     document.getElementById('opponent-count').textContent = state.opponent.length;
     document.getElementById('round-num').textContent = state.round;
-    document.getElementById('round-count').textContent = state.handSize;
+    document.getElementById('round-my').textContent = state.me.length;
+    document.getElementById('round-opp').textContent = state.opponent.length;
 
     const myTurn = !state.over && state.turn === 'me';
     playBtn.disabled = !myTurn;
     passBtn.disabled = !myTurn;
+
+    const restartLocked = state.started && !state.over;
+    newBtn.disabled = restartLocked;
+    newBtn.title = restartLocked ? '本局进行中，打完这局后才能重新发牌' : '';
 
     turnBadge.textContent = state.over
       ? '本局结束'
@@ -302,6 +309,8 @@
     indices.forEach((index) => state.me.splice(index, 1));
     state.me.sort((a, b) => CARD_VALUE[b] - CARD_VALUE[a]);
 
+    state.started = true;
+
     addRecord(`我：${formatCards(cards)}`);
     state.lastPlay = currentType;
     state.lastCards = cards;
@@ -337,7 +346,10 @@
     scheduleAi();
   });
 
-  newBtn.addEventListener('click', newRound);
+  newBtn.addEventListener('click', () => {
+    if (state.started && !state.over) return;
+    newRound();
+  });
   opponentVisible.addEventListener('change', renderOpponent);
 
   /* ---------- Move generation ---------- */
