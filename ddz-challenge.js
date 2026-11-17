@@ -15,6 +15,7 @@
   const passBtn = document.getElementById('challenge-pass');
   const newBtn = document.getElementById('challenge-new');
   const turnBadge = document.getElementById('turn-badge');
+  const opponentVisible = document.getElementById('opponent-visible');
 
   const state = {
     me: [],
@@ -154,6 +155,16 @@
 
   function renderOpponent() {
     opponentCardsEl.textContent = '';
+
+    if (opponentVisible.checked) {
+      state.opponent.forEach((card) => {
+        const chip = document.createElement('span');
+        chip.className = 'card-chip opponent-card';
+        chip.textContent = card;
+        opponentCardsEl.append(chip);
+      });
+      return;
+    }
 
     for (let i = 0; i < state.opponent.length; i++) {
       const back = document.createElement('span');
@@ -327,6 +338,7 @@
   });
 
   newBtn.addEventListener('click', newRound);
+  opponentVisible.addEventListener('change', renderOpponent);
 
   /* ---------- Move generation ---------- */
 

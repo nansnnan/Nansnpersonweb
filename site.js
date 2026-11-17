@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.3';
+  const VERSION = 'v1.0.4';
 
   const RELEASES = [
+    {
+      version: 'v1.0.4',
+      date: '2026-11-16',
+      items: [
+        '残局挑战新增对手牌面开关，可随时切换显示或隐藏对手手牌。'
+      ]
+    },
     {
       version: 'v1.0.3',
       date: '2026-11-16',

@@ -24,7 +24,14 @@
         <section class="challenge-side">
           <div class="player-info">
             <span class="player-name">对手</span>
-            <span class="player-count">剩余 <strong id="opponent-count">0</strong> 张</span>
+            <span class="player-meta">
+              <label class="switch">
+                <input id="opponent-visible" class="switch-input" type="checkbox">
+                <span class="switch-track" aria-hidden="true"></span>
+                <span class="switch-text">对手牌面</span>
+              </label>
+              <span class="player-count">剩余 <strong id="opponent-count">0</strong> 张</span>
+            </span>
           </div>
           <div id="opponent-cards" class="opponent-cards"></div>
         </section>
