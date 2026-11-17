@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>斗地主残局挑战 · 南山南的个人站</title>
+  <meta name="description" content="斗地主残局挑战：与机器自动对弈，双方各 5–15 张牌，先出完者获胜">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="tool-hero">
+    <div class="container">
+      <a class="back-link" href="index.html">← 返回首页</a>
+      <h1 class="tool-title">斗地主残局挑战</h1>
+      <p class="tool-subtitle">你与机器对弈 · 先出完牌者获胜</p>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <section class="tool-panel">
+      <div class="challenge-board">
+        <p class="challenge-round">第 <span id="round-num">1</span> 局 · 双方各 <span id="round-count">0</span> 张</p>
+
+        <section class="challenge-side">
+          <div class="player-info">
+            <span class="player-name">对手</span>
+            <span class="player-count">剩余 <strong id="opponent-count">0</strong> 张</span>
+          </div>
+          <div id="opponent-cards" class="opponent-cards"></div>
+        </section>
+
+        <section class="challenge-table">
+          <span class="table-label">上一手</span>
+          <div id="last-play" class="table-cards">
+            <span class="table-empty">自由出牌</span>
+          </div>
+          <p id="challenge-tip" class="study-tip" role="status"></p>
+        </section>
+
+        <section class="challenge-side">
+          <div class="player-info">
+            <span class="player-name">我</span>
+            <span class="player-meta">
+              <span class="player-count">剩余 <strong id="my-count">0</strong> 张</span>
+              <span id="turn-badge" class="turn-badge"></span>
+            </span>
+          </div>
+          <div id="my-cards" class="seat-cards"></div>
+        </section>
+
+        <div class="study-actions challenge-actions">
+          <button id="challenge-play" class="btn btn-primary" type="button">出牌</button>
+          <button id="challenge-pass" class="btn" type="button">不出</button>
+          <button id="challenge-new" class="btn" type="button">重新发牌</button>
+        </div>
+
+        <section class="study-record">
+          <h4 class="record-title">对局记录</h4>
+          <div id="challenge-record" class="record-list"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="site-version" data-site-version></span>
+        <button
+          class="changelog-trigger"
+          type="button"
+          data-dialog-open="changelog"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="site.js"></script>
+  <script src="ddz-rules.js"></script>
+  <script src="ddz-challenge.js"></script>
+</body>
+</html>

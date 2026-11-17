@@ -1146,6 +1146,131 @@ body.modal-open {
   color: var(--text-faint);
 }
 
+/* ---------- Challenge page ---------- */
+
+.challenge-board {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.challenge-round {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  text-align: center;
+  color: var(--text-faint);
+}
+
+.challenge-side {
+  padding: 14px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.player-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.player-name {
+  font-weight: 600;
+}
+
+.player-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.player-count {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.player-count strong {
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.turn-badge {
+  padding: 2px 9px;
+  font-size: 11px;
+  color: var(--text-faint);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.turn-badge.is-mine {
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: transparent;
+}
+
+.opponent-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  min-height: 34px;
+}
+
+.card-back {
+  width: 22px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--brand-soft),
+    var(--brand-soft) 3px,
+    var(--surface) 3px,
+    var(--surface) 6px
+  );
+}
+
+.challenge-table {
+  padding: 14px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.table-label {
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.table-cards {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 44px;
+  margin-top: 8px;
+}
+
+.table-empty {
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.challenge-table .study-tip {
+  margin: 6px 0 0;
+}
+
+.challenge-actions .btn {
+  flex: 1 1 100px;
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 640px) {
