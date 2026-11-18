@@ -18,6 +18,16 @@
 
   <main class="container tool-main">
     <section class="tool-panel qy-panel">
+      <div class="qy-sandbox-bar">
+        <label class="switch">
+          <input id="qy-sandbox-toggle" class="switch-input" type="checkbox">
+          <span class="switch-track" aria-hidden="true"></span>
+          <span class="switch-text">沙盒模式</span>
+        </label>
+        <span id="qy-sandbox-status" class="qy-sandbox-status"></span>
+        <button id="qy-sandbox-edit" class="mini-btn" type="button" hidden>编辑名单</button>
+      </div>
+
       <div class="qy-status">
         <div>
           <span id="qy-stage" class="qy-stage">准备中</span>
@@ -45,6 +55,22 @@
       </div>
 
       <p id="qy-tip" class="study-tip" role="status"></p>
+
+      <section id="qy-sandbox-editor" class="qy-sandbox-editor" hidden>
+        <div class="qy-sb-head">
+          <div>
+            <h3 class="qy-sb-title">沙盒名单</h3>
+            <p id="qy-sb-summary" class="qy-sb-summary"></p>
+          </div>
+          <button id="qy-sb-add-team" class="mini-btn" type="button">新增战队</button>
+        </div>
+        <div id="qy-sb-teams" class="qy-sb-teams"></div>
+        <p id="qy-sb-tip" class="setup-tip" role="status"></p>
+        <div class="qy-sb-actions">
+          <button id="qy-sb-cancel" class="btn" type="button">取消</button>
+          <button id="qy-sb-apply" class="btn btn-primary" type="button">应用并重新开始</button>
+        </div>
+      </section>
 
       <div class="qy-actions">
         <button id="qy-single" class="btn btn-primary" type="button">模拟单局</button>

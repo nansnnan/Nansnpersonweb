@@ -13,8 +13,27 @@
   const BOARDS_PER_GAME = [12, 16, 20, 20, 20];
   const DECIDING_BOARDS = 8;
 
-  const teams = DATA.teams.map((team, index) => ({ ...team, id: index }));
+  function cloneTeamData(team, index) {
+    return {
+      name: team.name,
+      seed: Boolean(team.seed),
+      id: index,
+      players: team.players.map((player) => ({ ...player }))
+    };
+  }
 
+  function cloneTeamList(list) {
+    return list.map((team, index) => cloneTeamData(team, index));
+  }
+
+  let officialTeams = cloneTeamList(DATA.teams);
+  let teams = officialTeams;
+  let sandboxTeams = null;
+  let sandboxDraft = null;
+  let sandboxActive = false;
+  let sandboxEditing = false;
+  let preserveStrengths = false;
+  let sandboxSeq = 0;
   const stageEl = document.getElementById('qy-stage');
   const roundEl = document.getElementById('qy-round');
   const teamAEl = document.getElementById('qy-team-a');
@@ -38,6 +57,16 @@
   const summaryAction = document.getElementById('summary-action');
   const restartModal = document.getElementById('restart-modal');
   const restartConfirm = document.getElementById('restart-confirm');
+  const sandboxToggle = document.getElementById('qy-sandbox-toggle');
+  const sandboxStatus = document.getElementById('qy-sandbox-status');
+  const sandboxEditBtn = document.getElementById('qy-sandbox-edit');
+  const sandboxEditor = document.getElementById('qy-sandbox-editor');
+  const sandboxTeamsEl = document.getElementById('qy-sb-teams');
+  const sandboxSummary = document.getElementById('qy-sb-summary');
+  const sandboxTip = document.getElementById('qy-sb-tip');
+  const sandboxAddTeamBtn = document.getElementById('qy-sb-add-team');
+  const sandboxApplyBtn = document.getElementById('qy-sb-apply');
+  const sandboxCancelBtn = document.getElementById('qy-sb-cancel');
 
   let season = null;
   let lastResult = null;
@@ -77,10 +106,12 @@
     return b.w - a.w || b.gw - a.gw || b.pts - a.pts;
   }
 
-  function prepareTeams() {
-    teams.forEach((team) => {
+  function prepareTeams(list = teams, preserve = false) {
+    list.forEach((team) => {
       team.seedBonus = team.seed ? 5 + (hash(`${team.name}:seed`) % 4) : 0;
       team.players.forEach((player) => {
+        if (preserve && Number.isFinite(player.strength)) return;
+
         let strength = 50 + (hash(`${player.account}:${team.name}`) % 41);
         if (player.gold) strength += 3 + (hash(`${player.account}:gold`) % 3);
         if (player.role === '领队' || player.role === '队长' || player.role === '教练') {
@@ -872,7 +903,7 @@
   function resetSeason() {
     closeModal(summaryModal);
     closeModal(restartModal);
-    prepareTeams();
+    prepareTeams(teams, preserveStrengths);
     season = {
       stageIdx: 0,
       stageStats: createStatsMap(),
@@ -892,6 +923,275 @@
     lastResult = null;
     lastSummary = null;
     startStage(0);
+  }
+
+  function sandboxValidationMessage() {
+    if (!sandboxDraft) return '';
+
+    if (sandboxDraft.length !== 24) {
+      return `需要 24 支战队，当前 ${sandboxDraft.length} 支。`;
+    }
+
+    const seeds = sandboxDraft.filter((team) => team.seed).length;
+    if (seeds !== 8) {
+      return `需要 8 支种子队，当前 ${seeds} 支。`;
+    }
+
+    for (const team of sandboxDraft) {
+      if (!team.name.trim()) return '战队名称不能为空。';
+      const playable = team.players.filter((player) => player.role !== '领队' && player.role !== '教练');
+      if (playable.length < 4) {
+        return `战队「${team.name.trim() || '未命名'}」至少需要 4 名可上场队员。`;
+      }
+      if (team.players.some((player) => !player.name.trim() || !Number.isFinite(player.strength))) {
+        return `战队「${team.name.trim()}」存在未命名或实力值无效的队员。`;
+      }
+    }
+
+    return '';
+  }
+
+  function updateSandboxValidation() {
+    if (!sandboxDraft) return;
+
+    const seedCount = sandboxDraft.filter((team) => team.seed).length;
+    const playerCount = sandboxDraft.reduce((sum, team) => sum + team.players.length, 0);
+    sandboxSummary.textContent = `${sandboxDraft.length} 支战队 · ${seedCount} 支种子队 · ${playerCount} 名选手 · 需 24 队 / 8 种子`;
+
+    const error = sandboxValidationMessage();
+    sandboxTip.textContent = error;
+    sandboxApplyBtn.disabled = Boolean(error);
+  }
+
+  function movePlayer(fromTeam, playerIndex, toIndex) {
+    if (!sandboxDraft || toIndex < 0 || toIndex >= sandboxDraft.length) return;
+    if (sandboxDraft[toIndex] === fromTeam) return;
+
+    const [player] = fromTeam.players.splice(playerIndex, 1);
+    sandboxDraft[toIndex].players.push(player);
+    renderSandboxEditor(toIndex);
+  }
+
+  function renderSandboxEditor(openIndex = null) {
+    if (!sandboxDraft) return;
+
+    sandboxTeamsEl.textContent = '';
+
+    sandboxDraft.forEach((team, teamIndex) => {
+      const details = document.createElement('details');
+      details.className = 'qy-sb-team';
+      details.open = teamIndex === openIndex;
+
+      const summary = document.createElement('summary');
+      const name = document.createElement('span');
+      name.className = 'qy-sb-team-name';
+      name.textContent = team.name || '未命名战队';
+      const meta = document.createElement('span');
+      meta.className = 'qy-sb-team-meta';
+      meta.textContent = `${team.players.length} 人${team.seed ? ' · 种子队' : ''}`;
+      summary.append(name, meta);
+
+      const body = document.createElement('div');
+      body.className = 'qy-sb-body';
+
+      const teamRow = document.createElement('div');
+      teamRow.className = 'qy-sb-team-row';
+
+      const teamNameInput = document.createElement('input');
+      teamNameInput.className = 'qy-sb-input qy-sb-name';
+      teamNameInput.type = 'text';
+      teamNameInput.value = team.name;
+      teamNameInput.setAttribute('aria-label', '战队名称');
+      teamNameInput.addEventListener('input', () => {
+        team.name = teamNameInput.value;
+        name.textContent = team.name || '未命名战队';
+        updateSandboxValidation();
+      });
+
+      const seedLabel = document.createElement('label');
+      seedLabel.className = 'qy-sb-seed';
+      const seedInput = document.createElement('input');
+      seedInput.type = 'checkbox';
+      seedInput.checked = team.seed;
+      seedInput.addEventListener('change', () => {
+        team.seed = seedInput.checked;
+        meta.textContent = `${team.players.length} 人${team.seed ? ' · 种子队' : ''}`;
+        updateSandboxValidation();
+      });
+      seedLabel.append(seedInput, document.createTextNode('种子队'));
+
+      const removeTeam = document.createElement('button');
+      removeTeam.type = 'button';
+      removeTeam.className = 'mini-btn';
+      removeTeam.textContent = '删除战队';
+      removeTeam.addEventListener('click', () => {
+        sandboxDraft.splice(teamIndex, 1);
+        renderSandboxEditor();
+      });
+
+      teamRow.append(teamNameInput, seedLabel, removeTeam);
+
+      const players = document.createElement('div');
+      players.className = 'qy-sb-body';
+
+      team.players.forEach((player, playerIndex) => {
+        const row = document.createElement('div');
+        row.className = 'qy-sb-player';
+
+        const playerName = document.createElement('input');
+        playerName.className = 'qy-sb-input';
+        playerName.type = 'text';
+        playerName.value = player.name;
+        playerName.setAttribute('aria-label', '队员名称');
+        playerName.addEventListener('input', () => {
+          player.name = playerName.value;
+          updateSandboxValidation();
+        });
+
+        const strength = document.createElement('input');
+        strength.className = 'qy-sb-input qy-sb-strength';
+        strength.type = 'number';
+        strength.min = '0';
+        strength.step = '1';
+        strength.value = Number.isFinite(player.strength) ? player.strength : 70;
+        strength.setAttribute('aria-label', '实力值');
+        strength.addEventListener('input', () => {
+          const value = Number(strength.value);
+          player.strength = Number.isFinite(value) ? Math.max(0, value) : 0;
+          updateSandboxValidation();
+        });
+
+        const teamSelect = document.createElement('select');
+        teamSelect.className = 'qy-sb-select';
+        teamSelect.setAttribute('aria-label', '所属战队');
+        sandboxDraft.forEach((optionTeam, optionIndex) => {
+          const option = document.createElement('option');
+          option.value = String(optionIndex);
+          option.textContent = optionTeam.name || '未命名战队';
+          if (optionIndex === teamIndex) option.selected = true;
+          teamSelect.append(option);
+        });
+        teamSelect.addEventListener('change', () => {
+          movePlayer(team, playerIndex, Number(teamSelect.value));
+        });
+
+        const removePlayer = document.createElement('button');
+        removePlayer.type = 'button';
+        removePlayer.className = 'qy-sb-remove';
+        removePlayer.textContent = '×';
+        removePlayer.setAttribute('aria-label', '删除队员');
+        removePlayer.addEventListener('click', () => {
+          team.players.splice(playerIndex, 1);
+          renderSandboxEditor(teamIndex);
+        });
+
+        row.append(playerName, strength, removePlayer, teamSelect);
+        players.append(row);
+      });
+
+      const addPlayer = document.createElement('button');
+      addPlayer.type = 'button';
+      addPlayer.className = 'mini-btn';
+      addPlayer.textContent = '新增队员';
+      addPlayer.addEventListener('click', () => {
+        sandboxSeq++;
+        team.players.push({
+          name: '新队员',
+          account: `sandbox-${sandboxSeq}`,
+          role: '队员',
+          gold: false,
+          strength: 70
+        });
+        renderSandboxEditor(teamIndex);
+      });
+
+      body.append(teamRow, players, addPlayer);
+      details.append(summary, body);
+      sandboxTeamsEl.append(details);
+    });
+
+    updateSandboxValidation();
+  }
+
+  function updateSandboxBar() {
+    sandboxToggle.checked = sandboxActive || sandboxEditing;
+    sandboxStatus.textContent = sandboxEditing
+      ? '编辑中'
+      : sandboxActive
+        ? `沙盒赛季 · ${sandboxTeams.length} 队 · ${sandboxTeams.filter((team) => team.seed).length} 种子`
+        : '';
+    sandboxEditBtn.hidden = !sandboxActive || sandboxEditing;
+  }
+
+  function openSandboxEditor() {
+    const source = sandboxActive && sandboxTeams ? sandboxTeams : officialTeams;
+    sandboxDraft = cloneTeamList(source);
+    sandboxEditing = true;
+
+    document.querySelector('.qy-panel').classList.add('is-sandbox-editing');
+    sandboxEditor.hidden = false;
+    sandboxEditBtn.hidden = true;
+    renderSandboxEditor();
+    updateSandboxBar();
+  }
+
+  function closeSandboxEditor() {
+    sandboxEditing = false;
+    sandboxDraft = null;
+    sandboxEditor.hidden = true;
+    document.querySelector('.qy-panel').classList.remove('is-sandbox-editing');
+  }
+
+  function applySandbox() {
+    if (!sandboxDraft || sandboxValidationMessage()) return;
+
+    sandboxDraft.forEach((team, index) => {
+      team.id = index;
+      team.players.forEach((player) => {
+        if (!Number.isFinite(player.strength)) player.strength = 70;
+      });
+    });
+
+    sandboxTeams = sandboxDraft;
+    teams = sandboxTeams;
+    preserveStrengths = true;
+    sandboxActive = true;
+    closeSandboxEditor();
+    resetSeason();
+    updateSandboxBar();
+    tipEl.textContent = '沙盒赛季已开始，名单与实力值可按需继续编辑。';
+  }
+
+  function cancelSandbox() {
+    closeSandboxEditor();
+
+    if (sandboxActive) {
+      updateSandboxBar();
+      render();
+    } else {
+      sandboxToggle.checked = false;
+      updateSandboxBar();
+      render();
+    }
+  }
+
+  function exitSandbox() {
+    const wasActive = sandboxActive;
+    closeSandboxEditor();
+
+    sandboxActive = false;
+    sandboxTeams = null;
+    preserveStrengths = false;
+    teams = officialTeams;
+    sandboxToggle.checked = false;
+    updateSandboxBar();
+
+    if (wasActive) {
+      resetSeason();
+      tipEl.textContent = '已退出沙盒模式，恢复官方名单与赛季。';
+    } else {
+      render();
+    }
   }
 
   function advanceMatch() {
@@ -1235,5 +1535,25 @@
   restartBtn.addEventListener('click', () => openModal(restartModal));
   restartConfirm.addEventListener('click', resetSeason);
 
+  sandboxToggle.addEventListener('change', () => {
+    if (sandboxToggle.checked) openSandboxEditor();
+    else exitSandbox();
+  });
+  sandboxEditBtn.addEventListener('click', openSandboxEditor);
+  sandboxApplyBtn.addEventListener('click', applySandbox);
+  sandboxCancelBtn.addEventListener('click', cancelSandbox);
+  sandboxAddTeamBtn.addEventListener('click', () => {
+    if (!sandboxDraft) return;
+
+    sandboxDraft.push({
+      name: `新战队${sandboxDraft.length + 1}`,
+      seed: false,
+      id: sandboxDraft.length,
+      players: []
+    });
+    renderSandboxEditor(sandboxDraft.length - 1);
+  });
+
+  updateSandboxBar();
   resetSeason();
 })();
