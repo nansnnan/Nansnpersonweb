@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.10';
+  const VERSION = 'v1.0.11';
 
   const RELEASES = [
+    {
+      version: 'v1.0.11',
+      date: '2026-11-18',
+      items: [
+        '青云杯每场支持本队多名队员轮换：可四名队员打到底，也可在局间换人；替补只能来自同一支队伍，轮次内同人规避继续生效。'
+      ]
+    },
     {
       version: 'v1.0.10',
       date: '2026-11-18',

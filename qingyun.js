@@ -96,28 +96,84 @@
     return player.account || player.name;
   }
 
-  function pickLineup(team, stageIdx, excluded = new Set()) {
+  function weightedPick(pool, count) {
+    const source = [...pool];
+    const chosen = [];
+
+    while (chosen.length < count && source.length > 0) {
+      const total = source.reduce((sum, player) => sum + player.strength ** 2, 0);
+      let ticket = Math.random() * total;
+      let index = 0;
+      for (; index < source.length; index++) {
+        ticket -= source[index].strength ** 2;
+        if (ticket <= 0) break;
+      }
+      chosen.push(source.splice(Math.min(index, source.length - 1), 1)[0]);
+    }
+
+    return chosen;
+  }
+
+  function pickSquad(team, stageIdx, excluded = new Set()) {
     const eligible = team.players.filter((player) =>
       stageIdx >= 2 ? player.role !== '领队' && player.role !== '教练' : true
     );
     const free = eligible.filter((player) => !excluded.has(playerKey(player)));
-    const pool = free.length >= 4 ? [...free] : [...eligible];
+    const pool = free.length >= 4 ? free : eligible;
+    const maxSize = Math.min(pool.length, 7);
 
-    const chosen = [];
-    while (chosen.length < 4 && pool.length > 0) {
-      const total = pool.reduce((sum, player) => sum + player.strength ** 2, 0);
-      let ticket = Math.random() * total;
-      let index = 0;
-      for (; index < pool.length; index++) {
-        ticket -= pool[index].strength ** 2;
-        if (ticket <= 0) break;
-      }
-      const picked = pool.splice(Math.min(index, pool.length - 1), 1)[0];
-      chosen.push(picked);
-      excluded.add(playerKey(picked));
-    }
+    if (maxSize === 0) return [];
 
-    return chosen;
+    const size = maxSize <= 4 ? maxSize : 4 + Math.floor(Math.random() * (maxSize - 3));
+    const squad = weightedPick(pool, size);
+    squad.forEach((player) => excluded.add(playerKey(player)));
+    return squad;
+  }
+
+  function chooseActive(squad) {
+    return weightedPick(squad, Math.min(4, squad.length));
+  }
+
+  function assignPairs(match) {
+    const shuffledA = shuffle(match.activeA);
+    const shuffledB = shuffle(match.activeB);
+    match.pairA1 = shuffledA.slice(0, 2);
+    match.pairA2 = shuffledA.slice(2, 4);
+    match.pairB1 = shuffledB.slice(0, 2);
+    match.pairB2 = shuffledB.slice(2, 4);
+  }
+
+  function maybeSubstitute(match) {
+    if (match.games.length === 0) return;
+
+    const sides = [
+      { squad: match.squadA, active: match.activeA, key: 'activeA' },
+      { squad: match.squadB, active: match.activeB, key: 'activeB' }
+    ];
+
+    sides.forEach((side) => {
+      const bench = side.squad.filter((player) => !side.active.includes(player));
+      if (bench.length === 0 || Math.random() > 0.45) return;
+
+      const count = Math.min(
+        bench.length,
+        side.active.length - 1,
+        Math.random() < 0.35 ? 2 : 1
+      );
+      if (count <= 0) return;
+
+      const incoming = shuffle(bench).slice(0, count);
+      const outgoing = shuffle(side.active).slice(0, count);
+
+      incoming.forEach((player, index) => {
+        const position = side.active.indexOf(outgoing[index]);
+        if (position > -1) side.active[position] = player;
+      });
+
+      match[side.key] = [...side.active];
+    });
+
+    assignPairs(match);
   }
 
   function blankStat(player, team) {
@@ -167,22 +223,20 @@
   function createMatch(teamA, teamB, format, label) {
     const formatN = Number(format.replace('BO', ''));
     const used = season.roundUsed || new Set();
-    const lineupA = pickLineup(teamA, season.stageIdx, used);
-    const lineupB = pickLineup(teamB, season.stageIdx, used);
-    const shuffledA = shuffle(lineupA);
-    const shuffledB = shuffle(lineupB);
+    const squadA = pickSquad(teamA, season.stageIdx, used);
+    const squadB = pickSquad(teamB, season.stageIdx, used);
 
-    return {
+    const match = {
       teamA,
       teamB,
       format,
       formatN,
       target: Math.ceil(formatN / 2),
       label,
-      pairA1: shuffledA.slice(0, 2),
-      pairA2: shuffledA.slice(2, 4),
-      pairB1: shuffledB.slice(0, 2),
-      pairB2: shuffledB.slice(2, 4),
+      squadA,
+      squadB,
+      activeA: chooseActive(squadA),
+      activeB: chooseActive(squadB),
       winsA: 0,
       winsB: 0,
       games: [],
@@ -191,6 +245,9 @@
       recorded: false,
       winnerTeam: null
     };
+
+    assignPairs(match);
+    return match;
   }
 
   function makeBoardHands() {
@@ -327,6 +384,8 @@
   }
 
   function playGame(match, sessionStats) {
+    maybeSubstitute(match);
+
     const deciding =
       season.stageIdx >= 1 &&
       match.winsA === match.target - 1 &&
@@ -366,7 +425,9 @@
       scoreB,
       winner,
       deciding,
-      plannedBoards
+      plannedBoards,
+      lineupA: match.activeA.map((player) => player.name),
+      lineupB: match.activeB.map((player) => player.name)
     };
 
     if (winner === match.teamA) match.winsA++;
@@ -1098,7 +1159,12 @@
       });
 
       table.append(thead, tbody);
-      section.append(head, wrapTable(table));
+
+      const lineup = document.createElement('p');
+      lineup.className = 'qy-lineup';
+      lineup.textContent = `${match.teamA.name}：${game.lineupA.join('、')} ｜ ${match.teamB.name}：${game.lineupB.join('、')}`;
+
+      section.append(head, lineup, wrapTable(table));
       resultBody.append(section);
     });
 
