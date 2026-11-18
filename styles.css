@@ -1429,6 +1429,261 @@ body.modal-open {
   flex: 1 1 100px;
 }
 
+/* ---------- Qingyun simulator ---------- */
+
+.qy-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.qy-status {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.qy-stage {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.qy-round-text {
+  margin: 3px 0 0;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.qy-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.qy-match {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 14px;
+  background: var(--bg);
+  border-radius: 14px;
+}
+
+.qy-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  text-align: center;
+}
+
+.qy-team-name {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.qy-seed {
+  padding: 1px 7px;
+  font-size: 10.5px;
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-radius: 999px;
+}
+
+.qy-vs {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.qy-format {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+}
+
+.qy-score {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.qy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.qy-actions .btn {
+  flex: 1 1 100px;
+}
+
+.qy-actions .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.qy-rounds {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.qy-rounds > summary {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.qy-round-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.qy-round-item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 9px;
+  font-size: 12px;
+  color: var(--text-soft);
+  border-radius: 7px;
+}
+
+.qy-round-item.is-current {
+  background: var(--brand-soft);
+  color: var(--brand);
+}
+
+.qy-round-item .qy-round-result {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-faint);
+}
+
+.qy-round-item.is-current .qy-round-result {
+  color: var(--brand);
+}
+
+.qy-result {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.qy-empty {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-faint);
+}
+
+.qy-result-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.qy-result-sub {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.qy-game {
+  margin-top: 14px;
+}
+
+.qy-game-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.qy-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.qy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.qy-table th {
+  padding: 7px 9px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--text-faint);
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+}
+
+.qy-table td {
+  padding: 7px 9px;
+  color: var(--text-soft);
+  border-bottom: 1px solid var(--line);
+}
+
+.qy-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.qy-table td.qy-strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.qy-table .qy-win {
+  color: var(--brand);
+  font-weight: 600;
+}
+
+.qy-stats-section {
+  margin-top: 14px;
+}
+
+.qy-stats-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.modal-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 14px 18px;
+  border-top: 1px solid var(--line);
+}
+
+.modal-text {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+.modal-summary-note {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
 /* ---------- Responsive ---------- */
 
 @media (max-width: 640px) {
@@ -1473,6 +1728,24 @@ body.modal-open {
   .study-card {
     width: 30px;
     height: 42px;
+  }
+
+  .qy-match {
+    gap: 6px;
+    padding: 14px 10px;
+  }
+
+  .qy-team-name {
+    font-size: 13px;
+  }
+
+  .qy-actions .btn {
+    flex: 1 1 86px;
+    padding: 0 10px;
+  }
+
+  .modal-foot {
+    padding: 12px 14px;
   }
 
   .hand-label {
