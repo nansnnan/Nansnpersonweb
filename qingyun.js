@@ -10,6 +10,8 @@
     '第五赛段 · 决赛'
   ];
   const ROUND_LABELS = ['第一轮', '第二轮', '第三轮', '第四轮', '第五轮'];
+  const BOARDS_PER_GAME = [12, 16, 20, 20, 20];
+  const DECIDING_BOARDS = 8;
 
   const teams = DATA.teams.map((team, index) => ({ ...team, id: index }));
 
@@ -315,10 +317,10 @@
 
   function playGame(match, sessionStats) {
     const deciding =
-      match.formatN >= 5 &&
+      season.stageIdx >= 1 &&
       match.winsA === match.target - 1 &&
       match.winsB === match.target - 1;
-    const plannedBoards = deciding ? 8 : 4;
+    const plannedBoards = deciding ? DECIDING_BOARDS : BOARDS_PER_GAME[season.stageIdx];
 
     const maps = [sessionStats, match.stats, season.stageStats, season.totalStats];
     const boards = [];
@@ -332,7 +334,7 @@
       scoreB += board.pointsB;
 
       const remaining = plannedBoards - i - 1;
-      if (Math.abs(scoreA - scoreB) > remaining * 12) break;
+      if (season.stageIdx >= 2 && Math.abs(scoreA - scoreB) > remaining * 12) break;
     }
 
     let extra = 0;
@@ -352,7 +354,8 @@
       scoreA,
       scoreB,
       winner,
-      deciding
+      deciding,
+      plannedBoards
     };
 
     if (winner === match.teamA) match.winsA++;
@@ -498,7 +501,7 @@
     };
     setCurrentMatch(matches[0]);
     render();
-    tipEl.textContent = `${STAGE_NAMES[season.stageIdx]} · ${ROUND_LABELS[roundNo - 1]}：共 ${matches.length} 场对阵。`;
+    tipEl.textContent = `${STAGE_NAMES[season.stageIdx]} · ${ROUND_LABELS[roundNo - 1]}：共 ${matches.length} 场对阵，每局 ${BOARDS_PER_GAME[season.stageIdx]} 副。`;
   }
 
   function applySwissAdvances(roundNo) {
@@ -784,7 +787,7 @@
       render();
     }
 
-    tipEl.textContent = `${STAGE_NAMES[stageIdx]} 开始，对阵已随机分配。`;
+    tipEl.textContent = `${STAGE_NAMES[season.stageIdx]} 开始，每局 ${BOARDS_PER_GAME[stageIdx]} 副${stageIdx >= 1 ? `，决胜局 ${DECIDING_BOARDS} 副` : ''}，对阵已随机分配。`;
     render();
   }
 
@@ -1040,7 +1043,7 @@
       head.className = 'qy-game-head';
 
       const name = document.createElement('span');
-      name.textContent = `第 ${game.index} 局${game.deciding ? '（决胜局）' : ''}`;
+      name.textContent = `第 ${game.index} 局${game.deciding ? '（决胜局）' : ''} · ${game.plannedBoards} 副${game.boards.length < game.plannedBoards ? '（提前结束）' : ''}`;
 
       const score = document.createElement('span');
       score.textContent = `${game.scoreA} : ${game.scoreB} · ${game.winner.name} 胜`;

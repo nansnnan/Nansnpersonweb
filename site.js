@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.7';
+  const VERSION = 'v1.0.8';
 
   const RELEASES = [
+    {
+      version: 'v1.0.8',
+      date: '2026-11-18',
+      items: [
+        '调整青云杯模拟器每局副数：第一赛段 12 副、第二赛段 16 副、第三至第五赛段 20 副；第二至第五赛段决胜局为 8 副，第一赛段不设 8 副决胜局。'
+      ]
+    },
     {
       version: 'v1.0.7',
       date: '2026-11-18',
