@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.9';
+  const VERSION = 'v1.0.10';
 
   const RELEASES = [
+    {
+      version: 'v1.0.10',
+      date: '2026-11-18',
+      items: [
+        '青云杯出场名单加入同人规避：同一轮中优先避免同一选手代表多支队伍出场；两队共用选手时，成员充足则改派该队其他队员。'
+      ]
+    },
     {
       version: 'v1.0.9',
       date: '2026-11-18',

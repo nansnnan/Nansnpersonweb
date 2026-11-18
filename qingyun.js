@@ -92,11 +92,16 @@
     });
   }
 
-  function pickLineup(team, stageIdx) {
-    let pool = team.players.filter((player) =>
+  function playerKey(player) {
+    return player.account || player.name;
+  }
+
+  function pickLineup(team, stageIdx, excluded = new Set()) {
+    const eligible = team.players.filter((player) =>
       stageIdx >= 2 ? player.role !== '领队' && player.role !== '教练' : true
     );
-    if (pool.length < 4) pool = [...team.players];
+    const free = eligible.filter((player) => !excluded.has(playerKey(player)));
+    const pool = free.length >= 4 ? [...free] : [...eligible];
 
     const chosen = [];
     while (chosen.length < 4 && pool.length > 0) {
@@ -107,8 +112,11 @@
         ticket -= pool[index].strength ** 2;
         if (ticket <= 0) break;
       }
-      chosen.push(pool.splice(Math.min(index, pool.length - 1), 1)[0]);
+      const picked = pool.splice(Math.min(index, pool.length - 1), 1)[0];
+      chosen.push(picked);
+      excluded.add(playerKey(picked));
     }
+
     return chosen;
   }
 
@@ -158,8 +166,9 @@
 
   function createMatch(teamA, teamB, format, label) {
     const formatN = Number(format.replace('BO', ''));
-    const lineupA = pickLineup(teamA, season.stageIdx);
-    const lineupB = pickLineup(teamB, season.stageIdx);
+    const used = season.roundUsed || new Set();
+    const lineupA = pickLineup(teamA, season.stageIdx, used);
+    const lineupB = pickLineup(teamB, season.stageIdx, used);
     const shuffledA = shuffle(lineupA);
     const shuffledB = shuffle(lineupB);
 
@@ -435,6 +444,7 @@
   }
 
   function buildSwissRound(roundNo) {
+    season.roundUsed = new Set();
     const metrics = season.metrics;
     const active = season.stageTeams.filter((team) => {
       const record = metrics.get(team.id);
@@ -578,6 +588,7 @@
   }
 
   function buildStage3Round0() {
+    season.roundUsed = new Set();
     const shuffled = shuffle(season.stageTeams);
     const matches = [];
     for (let i = 0; i < shuffled.length; i += 2) {
@@ -599,6 +610,7 @@
   }
 
   function buildStage3Next() {
+    season.roundUsed = new Set();
     const bracket = season.bracket;
     const roundIndex = bracket.roundIndex;
 
@@ -696,6 +708,7 @@
   }
 
   function buildStage4Next() {
+    season.roundUsed = new Set();
     const bracket = season.bracket;
     const roundIndex = bracket.roundIndex;
 
@@ -769,6 +782,7 @@
     } else if (stageIdx === 3) {
       season.stageTeams = [...season.qualifiers];
       season.bracket = { roundIndex: 0 };
+      season.roundUsed = new Set();
       const shuffled = shuffle(season.stageTeams);
       season.round = {
         label: '分区赛',
@@ -781,6 +795,7 @@
       render();
     } else {
       season.stageTeams = [...season.finalists];
+      season.roundUsed = new Set();
       season.round = {
         label: '决赛',
         matches: [createMatch(season.finalists[0], season.finalists[1], 'BO7', '决赛')]
