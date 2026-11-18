@@ -304,14 +304,16 @@
     const table2 = simulateTable(match, 2, hands, (boardIndex + 2) % 4, maps);
 
     const raw = table1.signedA + table2.signedA;
-    const pointsA = Math.max(-12, Math.min(12, raw));
+    const margin = Math.min(12, Math.abs(raw));
+    const pointsA = raw > 0 ? margin : 0;
+    const pointsB = raw < 0 ? margin : 0;
 
     return {
       index: boardIndex,
       table1,
       table2,
       pointsA,
-      pointsB: -pointsA
+      pointsB
     };
   }
 
@@ -1068,10 +1070,10 @@
           tableCell(`${t1.winnerTeam.name} +${t1.points}`, 'qy-strong'),
           tableCell(`${t2.winnerTeam.name} +${t2.points}`, 'qy-strong'),
           tableCell(
-            board.pointsA === 0
+            board.pointsA === 0 && board.pointsB === 0
               ? '平分'
-              : `${board.pointsA > 0 ? match.teamA.name : match.teamB.name} +${Math.abs(board.pointsA)}`,
-            board.pointsA === 0 ? '' : 'qy-win'
+              : `${board.pointsA > 0 ? match.teamA.name : match.teamB.name} +${Math.max(board.pointsA, board.pointsB)}`,
+            board.pointsA === 0 && board.pointsB === 0 ? '' : 'qy-win'
           )
         );
 

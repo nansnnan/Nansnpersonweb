@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.8';
+  const VERSION = 'v1.0.9';
 
   const RELEASES = [
+    {
+      version: 'v1.0.9',
+      date: '2026-11-18',
+      items: [
+        '青云杯比分改为胜方获得分差、未得分一方计 0 分，单副、局分与总分不再出现负分。'
+      ]
+    },
     {
       version: 'v1.0.8',
       date: '2026-11-18',
