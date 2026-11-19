@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.13';
+  const VERSION = 'v1.0.14';
 
   const RELEASES = [
+    {
+      version: 'v1.0.14',
+      date: '2026-11-19',
+      items: [
+        '实时比赛叫分后保证两名农民同队：闲家属于地主队时观战；闲家属于农民队时替换地主队友上场，地主队友转为闲家。'
+      ]
+    },
     {
       version: 'v1.0.13',
       date: '2026-11-19',

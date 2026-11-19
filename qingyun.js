@@ -1847,6 +1847,7 @@
       table.landlordSeat = null;
       table.hands = {};
       table.activeOrder = ['E', 'S', 'W', 'N'].filter((seat) => seat !== rotation.idle);
+      table.idleSeat = rotation.idle;
       rotation.bidders.forEach((seat) => {
         table.hands[seat] = [...dealHands[seat]];
       });
@@ -1905,6 +1906,25 @@
 
     table.landlordSeat = table.highestSeat;
     table.landlordTeam = table.seatPlayers[table.landlordSeat].team;
+
+    if (table.seatPlayers[table.idleSeat].team.id !== table.landlordTeam.id) {
+      const teammate = Object.values(table.seatPlayers).find((entry) =>
+        entry.team.id === table.landlordTeam.id && entry.seat !== table.landlordSeat
+      );
+
+      if (teammate) {
+        const idleEntry = table.seatPlayers[table.idleSeat];
+        table.seatPlayers[table.idleSeat] = { ...teammate, seat: table.idleSeat };
+        table.seatPlayers[teammate.seat] = { ...idleEntry, seat: teammate.seat };
+        table.bids[teammate.seat] = 0;
+        delete table.bids[table.idleSeat];
+        rtLogLine(
+          table,
+          `闲家 ${idleEntry.player.name} 替换 ${teammate.player.name} 上场，${teammate.player.name} 成为闲家`
+        );
+      }
+    }
+
     table.bid = table.highestBid;
     table.hands[table.landlordSeat] = sortCards([...table.hands[table.landlordSeat], ...table.bottom]);
     table.phase = 'playing';
