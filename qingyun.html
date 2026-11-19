@@ -56,6 +56,10 @@
 
       <p id="qy-tip" class="study-tip" role="status"></p>
 
+      <div class="qy-realtime-row">
+        <button id="qy-realtime" class="btn" type="button">实时比赛模拟</button>
+      </div>
+
       <section id="qy-sandbox-editor" class="qy-sandbox-editor" hidden>
         <div class="qy-sb-head">
           <div>
@@ -146,6 +150,37 @@
     </div>
   </div>
 
+  <div id="realtime-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rt-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel is-wide rt-panel" role="document">
+      <header class="modal-head">
+        <h2 id="rt-title" class="modal-title">实时比赛模拟</h2>
+        <button id="rt-close" class="modal-close" type="button" aria-label="退出实时模拟" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="rt-top">
+          <div class="rt-tabs">
+            <button class="rt-tab is-active" type="button" data-rt-table="0">第一桌</button>
+            <button class="rt-tab" type="button" data-rt-table="1">第二桌</button>
+          </div>
+          <span id="rt-score" class="rt-score"></span>
+        </div>
+        <div id="rt-notice" class="rt-notice" hidden></div>
+        <div id="rt-table-view" class="rt-table-view"></div>
+        <div class="rt-controls">
+          <button id="rt-fast-board" class="btn btn-small" type="button">快进当前副</button>
+          <button id="rt-fast-game" class="btn btn-small" type="button">快进当前局</button>
+        </div>
+        <div id="rt-log" class="rt-log" aria-live="polite"></div>
+        <div id="rt-result" class="rt-result" hidden></div>
+      </div>
+    </div>
+  </div>
+
   <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-panel" role="document">
@@ -162,6 +197,7 @@
   </div>
 
   <script src="site.js"></script>
+  <script src="ddz-rules.js"></script>
   <script src="qingyun-data.js"></script>
   <script src="qingyun.js"></script>
 </body>

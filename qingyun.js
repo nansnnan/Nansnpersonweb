@@ -2,6 +2,7 @@
   'use strict';
 
   const DATA = window.QINGYUN_DATA;
+  const { CARD_VALUE, RANKS, ALL_RANKS, getType, beats, sortCards } = window.DDZRules;
   const STAGE_NAMES = [
     '第一赛段 · 瑞士轮 24 进 16',
     '第二赛段 · 瑞士轮 16 进 8',
@@ -67,6 +68,16 @@
   const sandboxAddTeamBtn = document.getElementById('qy-sb-add-team');
   const sandboxApplyBtn = document.getElementById('qy-sb-apply');
   const sandboxCancelBtn = document.getElementById('qy-sb-cancel');
+  const realtimeBtn = document.getElementById('qy-realtime');
+  const rtModal = document.getElementById('realtime-modal');
+  const rtClose = document.getElementById('rt-close');
+  const rtScore = document.getElementById('rt-score');
+  const rtNotice = document.getElementById('rt-notice');
+  const rtTableView = document.getElementById('rt-table-view');
+  const rtFastBoard = document.getElementById('rt-fast-board');
+  const rtFastGame = document.getElementById('rt-fast-game');
+  const rtLog = document.getElementById('rt-log');
+  const rtResult = document.getElementById('rt-result');
 
   let season = null;
   let lastResult = null;
@@ -205,6 +216,7 @@
     });
 
     assignPairs(match);
+    match.seatMaps = [rtBuildSeats(match, 0), rtBuildSeats(match, 1)];
   }
 
   function blankStat(player, team) {
@@ -218,6 +230,7 @@
       farmerGames: 0,
       farmerWins: 0,
       bidSum: 0,
+      bidCount: 0,
       net: 0
     };
   }
@@ -243,7 +256,39 @@
         if (teamWon) stat.farmerWins++;
       }
       stat.bidSum += bid;
+      if (bid > 0) stat.bidCount++;
       stat.net += net;
+    });
+  }
+
+  function mergeStatsMap(target, source) {
+    source.forEach((stat, key) => {
+      if (!target.has(key)) {
+        target.set(key, {
+          name: stat.name,
+          teams: new Set(),
+          games: 0,
+          wins: 0,
+          landlordGames: 0,
+          landlordWins: 0,
+          farmerGames: 0,
+          farmerWins: 0,
+          bidSum: 0,
+          bidCount: 0,
+          net: 0
+        });
+      }
+      const out = target.get(key);
+      stat.teams.forEach((team) => out.teams.add(team));
+      out.games += stat.games;
+      out.wins += stat.wins;
+      out.landlordGames += stat.landlordGames;
+      out.landlordWins += stat.landlordWins;
+      out.farmerGames += stat.farmerGames;
+      out.farmerWins += stat.farmerWins;
+      out.bidSum += stat.bidSum;
+      out.bidCount += stat.bidCount;
+      out.net += stat.net;
     });
   }
 
@@ -278,7 +323,199 @@
     };
 
     assignPairs(match);
+    match.seatMaps = [rtBuildSeats(match, 0), rtBuildSeats(match, 1)];
     return match;
+  }
+
+  function moveCombinations(list, count) {
+    const result = [];
+
+    function walk(start, picked) {
+      if (picked.length === count) {
+        result.push([...picked]);
+        return;
+      }
+      for (let i = start; i < list.length; i++) {
+        picked.push(list[i]);
+        walk(i + 1, picked);
+        picked.pop();
+      }
+    }
+
+    walk(0, []);
+    return result;
+  }
+
+  function generateMoves(hand) {
+    const counts = {};
+    hand.forEach((card) => {
+      counts[card] = (counts[card] || 0) + 1;
+    });
+
+    const present = ALL_RANKS.filter((rank) => counts[rank] > 0);
+    const moves = [];
+    const seen = new Set();
+
+    function add(cards) {
+      const key = cards.join(',');
+      if (seen.has(key)) return;
+      const type = getType(cards);
+      if (!type) return;
+      seen.add(key);
+      moves.push({ ...type, cards });
+    }
+
+    present.forEach((rank) => {
+      const count = counts[rank];
+      if (count >= 1) add([rank]);
+      if (count >= 2) add([rank, rank]);
+      if (count >= 3) {
+        add([rank, rank, rank]);
+        present.forEach((other) => {
+          if (other === rank) return;
+          if (counts[other] >= 1) add([rank, rank, rank, other]);
+          if (counts[other] >= 2) add([rank, rank, rank, other, other]);
+        });
+      }
+      if (count >= 4) {
+        add([rank, rank, rank, rank]);
+        const others = present.filter((other) => other !== rank);
+        for (let i = 0; i < others.length; i++) {
+          for (let j = i + 1; j < others.length; j++) {
+            add([rank, rank, rank, rank, others[i], others[j]]);
+          }
+        }
+        others.forEach((other) => {
+          if (counts[other] >= 2) add([rank, rank, rank, rank, other, other]);
+        });
+        for (let i = 0; i < others.length; i++) {
+          for (let j = i + 1; j < others.length; j++) {
+            if (counts[others[i]] >= 2 && counts[others[j]] >= 2) {
+              add([rank, rank, rank, rank, others[i], others[i], others[j], others[j]]);
+            }
+          }
+        }
+      }
+    });
+
+    if (counts.X && counts.D) add(['X', 'D']);
+
+    const straightRanks = RANKS.slice(0, -1);
+
+    for (let start = 0; start < straightRanks.length; start++) {
+      const sequence = [];
+      for (let i = start; i < straightRanks.length; i++) {
+        if (counts[straightRanks[i]] >= 1) sequence.push(straightRanks[i]);
+        else break;
+      }
+      for (let length = 5; length <= sequence.length; length++) {
+        add(sequence.slice(0, length));
+      }
+    }
+
+    for (let start = 0; start < straightRanks.length; start++) {
+      const sequence = [];
+      for (let i = start; i < straightRanks.length; i++) {
+        if (counts[straightRanks[i]] >= 2) sequence.push(straightRanks[i]);
+        else break;
+      }
+      for (let length = 3; length <= sequence.length; length++) {
+        const cards = [];
+        sequence.slice(0, length).forEach((rank) => cards.push(rank, rank));
+        add(cards);
+      }
+    }
+
+    for (let start = 0; start < straightRanks.length; start++) {
+      const sequence = [];
+      for (let i = start; i < straightRanks.length; i++) {
+        if (counts[straightRanks[i]] >= 3) sequence.push(straightRanks[i]);
+        else break;
+      }
+
+      for (let length = 2; length <= sequence.length; length++) {
+        const body = sequence.slice(0, length);
+        const bodyCards = [];
+        body.forEach((rank) => bodyCards.push(rank, rank, rank));
+        add(bodyCards);
+
+        const singles = present.filter((rank) => !body.includes(rank) && counts[rank] >= 1);
+        moveCombinations(singles, length).forEach((wings) => add([...bodyCards, ...wings]));
+
+        const pairs = present.filter((rank) => !body.includes(rank) && counts[rank] >= 2);
+        moveCombinations(pairs, length).forEach((wings) => {
+          const wingCards = [];
+          wings.forEach((rank) => wingCards.push(rank, rank));
+          add([...bodyCards, ...wingCards]);
+        });
+      }
+    }
+
+    return moves;
+  }
+
+  function handPower(cards) {
+    const counts = {};
+    cards.forEach((card) => {
+      counts[card] = (counts[card] || 0) + 1;
+    });
+
+    let power = 0;
+    cards.forEach((card) => {
+      if (CARD_VALUE[card] >= 12) power += 3;
+      else if (CARD_VALUE[card] >= 9) power += 1.2;
+    });
+    Object.values(counts).forEach((count) => {
+      if (count === 4) power += 9;
+    });
+    if (counts.X && counts.D) power += 13;
+    return power;
+  }
+
+  function chooseBid(entry, hand, highestBid) {
+    let desire = handPower(hand) + (entry.player.strength - 70) * 0.45 + (Math.random() - 0.5) * 10;
+    let bid = 0;
+    if (desire > 42) bid = 3;
+    else if (desire > 28) bid = 2;
+    else if (desire > 15) bid = 1;
+
+    if (bid <= highestBid) bid = 0;
+    return bid;
+  }
+
+  function moveCost(move, hand, table) {
+    const bomb = move.type === 'bomb' || move.type === 'rocket';
+    let cost = CARD_VALUE[move.cards[0]];
+    cost += bomb ? 70 : 0;
+    cost -= move.cards.length * 2;
+    if (move.cards.length === hand.length) cost -= 500;
+    if (table && !table.lastPlay && bomb) cost += 30;
+    return cost;
+  }
+
+  function chooseRealtimeMove(table, seat, hand, moves) {
+    const entry = table.seatPlayers[seat];
+    let candidates = table.lastPlay
+      ? moves.filter((move) => beats(table.lastPlay, move))
+      : moves;
+
+    if (table.lastPlay && table.lastPlayer && table.lastPlayer.team === entry.team) {
+      const finish = candidates.find((move) => move.cards.length === hand.length);
+      if (!finish) {
+        const weak = entry.player.strength < 65 && Math.random() < 0.25;
+        if (!weak) return null;
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates = candidates.map((move) => ({ move, cost: moveCost(move, hand, table) }));
+    candidates.sort((a, b) => a.cost - b.cost);
+
+    const quality = Math.min(1, Math.max(0, (entry.player.strength - 50) / 40));
+    const poolSize = Math.max(1, Math.round(4 - quality * 3));
+    const pool = candidates.slice(0, poolSize);
+    return pool[Math.floor(Math.random() * pool.length)].move;
   }
 
   function makeBoardHands() {
@@ -294,24 +531,7 @@
   }
 
   function simulateTable(match, table, hands, boardIndex, maps) {
-    const groups = table === 1
-      ? [
-          { team: match.teamA, pair: match.pairA1, seats: ['E', 'W'] },
-          { team: match.teamB, pair: match.pairB1, seats: ['S', 'N'] }
-        ]
-      : [
-          { team: match.teamA, pair: match.pairA2, seats: ['S', 'N'] },
-          { team: match.teamB, pair: match.pairB2, seats: ['E', 'W'] }
-        ];
-
-    const seatPlayers = {};
-    groups.forEach((group) => {
-      const seatOrder = shuffle(group.seats);
-      group.pair.forEach((player, index) => {
-        const seat = seatOrder[index];
-        seatPlayers[seat] = { player, team: group.team, seat };
-      });
-    });
+    const seatPlayers = match.seatMaps[table - 1];
 
     const baseOrder = ['S', 'E', 'N', 'W'];
     const shift = boardIndex % 4;
@@ -368,11 +588,14 @@
       const entry = seatPlayers[seat];
       const isLandlord = seat === landlordSeat;
       const teamWon = entry.team === winnerTeam;
-      const net = isLandlord
+      const rawNet = isLandlord
         ? (teamWon ? points : -points)
-        : (teamWon ? points / 3 : -points / 3);
+        : (teamWon ? points / 2 : -points / 2);
 
-      recordPlayer(maps, entry.player, entry.team, isLandlord ? 'landlord' : 'farmer', bids[seat], teamWon, net);
+      entry.role = isLandlord ? 'landlord' : 'farmer';
+      entry.bid = bids[seat];
+      entry.teamWon = teamWon;
+      entry.rawNet = rawNet;
     });
 
     return {
@@ -387,10 +610,13 @@
       signedA: winnerTeam === match.teamA ? points : -points,
       players: order.map((seat) => ({
         seat,
+        player: seatPlayers[seat].player,
         name: seatPlayers[seat].player.name,
         team: seatPlayers[seat].team,
-        role: seat === landlordSeat ? 'landlord' : 'farmer',
-        bid: bids[seat]
+        role: seatPlayers[seat].role,
+        bid: seatPlayers[seat].bid,
+        teamWon: seatPlayers[seat].teamWon,
+        rawNet: seatPlayers[seat].rawNet
       }))
     };
   }
@@ -404,6 +630,16 @@
     const margin = Math.min(12, Math.abs(raw));
     const pointsA = raw > 0 ? margin : 0;
     const pointsB = raw < 0 ? margin : 0;
+
+    ['E', 'S', 'W', 'N'].forEach((seat) => {
+      const first = table1.players.find((entry) => entry.seat === seat);
+      const second = table2.players.find((entry) => entry.seat === seat);
+      if (!first || !second) return;
+
+      const difference = Math.round(first.rawNet - second.rawNet);
+      recordPlayer(maps, first.player, first.team, first.role, first.bid, first.teamWon, difference);
+      recordPlayer(maps, second.player, second.team, second.role, second.bid, second.teamWon, -difference);
+    });
 
     return {
       index: boardIndex,
@@ -1298,6 +1534,7 @@
     const canPlay = Boolean(match) && !match.done && !season.stageEnded && !season.finished;
     singleBtn.disabled = !canPlay;
     wholeBtn.disabled = !canPlay;
+    realtimeBtn.disabled = !canPlay;
     nextBtn.disabled = !match || !match.done || season.stageEnded || season.finished;
 
     summaryBtn.hidden = !lastSummary;
@@ -1376,11 +1613,11 @@
           tableCell(stat.name, 'qy-strong'),
           tableCell([...stat.teams].join(' / ')),
           tableCell(String(stat.games)),
-          tableCell(stat.net.toFixed(1)),
+          tableCell(String(Math.round(stat.net))),
           tableCell(formatPercent(stat.wins, stat.games)),
           tableCell(formatPercent(stat.landlordWins, stat.landlordGames)),
           tableCell(formatPercent(stat.farmerWins, stat.farmerGames)),
-          tableCell(formatAverage(stat.bidSum, stat.games))
+          tableCell(formatAverage(stat.bidSum, stat.bidCount))
         );
         body.append(row);
       });
@@ -1525,6 +1762,686 @@
 
     startStage(lastSummary.stageIdx + 1);
   }
+
+  /* ---------- Realtime simulation ---------- */
+
+  const RT_ROTATIONS = [
+    { bidders: ['S', 'E', 'N'], idle: 'W' },
+    { bidders: ['E', 'N', 'W'], idle: 'S' },
+    { bidders: ['N', 'W', 'S'], idle: 'E' },
+    { bidders: ['W', 'S', 'E'], idle: 'N' }
+  ];
+  let realtime = null;
+
+  function rtDeck() {
+    const deck = [];
+    for (let i = 0; i < 4; i++) deck.push(...RANKS);
+    deck.push('X', 'D');
+    return shuffle(deck);
+  }
+
+  function rtBuildSeats(match, tableIndex) {
+    const groups = tableIndex === 0
+      ? [
+          { team: match.teamA, pair: match.pairA1, seats: ['E', 'W'] },
+          { team: match.teamB, pair: match.pairB1, seats: ['S', 'N'] }
+        ]
+      : [
+          { team: match.teamA, pair: match.pairA2, seats: ['S', 'N'] },
+          { team: match.teamB, pair: match.pairB2, seats: ['E', 'W'] }
+        ];
+
+    const seats = {};
+    groups.forEach((group) => {
+      const order = shuffle(group.seats);
+      group.pair.forEach((player, index) => {
+        const seat = order[index];
+        seats[seat] = { player, team: group.team, seat };
+      });
+    });
+    return seats;
+  }
+
+  function rtLogLine(table, text) {
+    table.log.push(text);
+    if (table.log.length > 8) table.log.shift();
+  }
+
+  function rtClearTimer(table) {
+    if (table.timer) clearTimeout(table.timer);
+    table.timer = null;
+  }
+
+  function rtSchedule(table, fn) {
+    rtClearTimer(table);
+    if (!realtime || realtime.instant || realtime.finished) return;
+
+    const seat = table.phase === 'bidding'
+      ? table.bidOrder[table.bidCursor]
+      : table.turnSeat;
+    const delay = (table.decisionMs && table.decisionMs[seat]) || 1200;
+    table.timer = setTimeout(fn, delay);
+  }
+
+  function rtStartBoard(rt, index) {
+    const rotation = RT_ROTATIONS[index % 4];
+    const deck = rtDeck();
+    const dealHands = {};
+    rotation.bidders.forEach((seat, i) => {
+      dealHands[seat] = sortCards(deck.slice(i * 17, (i + 1) * 17));
+    });
+    const bottom = deck.slice(51, 54);
+
+    rt.boardIndex = index;
+    rt.boardProcessed = false;
+    rt.notice = '';
+
+    rt.tables.forEach((table) => {
+      rtClearTimer(table);
+      table.phase = 'bidding';
+      table.bidOrder = rotation.bidders;
+      table.bidCursor = 0;
+      table.bids = {};
+      table.highestBid = 0;
+      table.highestSeat = null;
+      table.landlordSeat = null;
+      table.hands = {};
+      table.activeOrder = ['E', 'S', 'W', 'N'].filter((seat) => seat !== rotation.idle);
+      rotation.bidders.forEach((seat) => {
+        table.hands[seat] = [...dealHands[seat]];
+      });
+      table.bottom = [...bottom];
+      table.turnSeat = null;
+      table.lastPlay = null;
+      table.lastCards = [];
+      table.lastPlayer = null;
+      table.passCount = 0;
+      table.bombs = 0;
+      table.farmerPlayed = false;
+      table.result = null;
+      table.log = [];
+      table.decisionMs = {};
+      table.activeOrder.forEach((seat) => {
+        table.decisionMs[seat] = 800 + Math.random() * 2400;
+      });
+      rtLogLine(table, `第 ${index + 1} 副开始，闲家：${table.seatPlayers[rotation.idle].player.name}`);
+      rtSchedule(table, () => rtStepBid(table));
+    });
+
+    renderRealtime();
+  }
+
+  function rtStepBid(table, sync = false) {
+    if (!realtime || realtime.finished || table.phase !== 'bidding') return;
+
+    const seat = table.bidOrder[table.bidCursor];
+    const entry = table.seatPlayers[seat];
+    const bid = chooseBid(entry, table.hands[seat], table.highestBid);
+    table.bids[seat] = bid;
+
+    if (bid > table.highestBid) {
+      table.highestBid = bid;
+      table.highestSeat = seat;
+    }
+
+    rtLogLine(table, bid > 0 ? `${entry.player.name} 叫 ${bid} 分` : `${entry.player.name} 不叫`);
+    table.bidCursor++;
+
+    if (table.highestBid === 3 || table.bidCursor >= table.bidOrder.length) {
+      rtFinishBidding(table, sync);
+      return;
+    }
+
+    if (!sync) rtSchedule(table, () => rtStepBid(table));
+    renderRealtime();
+  }
+
+  function rtFinishBidding(table, sync = false) {
+    if (table.highestSeat === null) {
+      table.highestSeat = table.bidOrder[0];
+      table.highestBid = 1;
+      table.bids[table.highestSeat] = 1;
+    }
+
+    table.landlordSeat = table.highestSeat;
+    table.landlordTeam = table.seatPlayers[table.landlordSeat].team;
+    table.bid = table.highestBid;
+    table.hands[table.landlordSeat] = sortCards([...table.hands[table.landlordSeat], ...table.bottom]);
+    table.phase = 'playing';
+    table.turnSeat = table.landlordSeat;
+    table.lastPlay = null;
+    table.lastCards = [];
+    table.lastPlayer = null;
+    table.passCount = 0;
+    table.bombs = 0;
+    table.farmerPlayed = false;
+
+    rtLogLine(table, `${table.seatPlayers[table.landlordSeat].player.name} 成为地主，底牌 ${table.bottom.join(' ')}`);
+
+    if (!sync) rtSchedule(table, () => rtStepPlay(table));
+    renderRealtime();
+  }
+
+  function rtNextSeat(table, seat) {
+    const order = table.activeOrder;
+    const index = order.indexOf(seat);
+    return order[(index + 1) % order.length];
+  }
+
+  function rtRemoveCards(hand, cards) {
+    cards.forEach((card) => {
+      const index = hand.indexOf(card);
+      if (index > -1) hand.splice(index, 1);
+    });
+    hand.sort((a, b) => CARD_VALUE[b] - CARD_VALUE[a]);
+  }
+
+  function rtApplyMove(table, entry, hand, move) {
+    rtRemoveCards(hand, move.cards);
+    if (move.type === 'bomb' || move.type === 'rocket') table.bombs++;
+    if (entry.seat !== table.landlordSeat) table.farmerPlayed = true;
+
+    table.lastPlay = move;
+    table.lastCards = move.cards;
+    table.lastPlayer = { seat: entry.seat, team: entry.team };
+    table.passCount = 0;
+
+    rtLogLine(table, `${entry.player.name} 出 ${sortCards(move.cards).join(' ')}（${move.type}）`);
+  }
+
+  function rtStepPlay(table, sync = false) {
+    if (!realtime || realtime.finished || table.phase !== 'playing') return;
+
+    const seat = table.turnSeat;
+    const entry = table.seatPlayers[seat];
+    const hand = table.hands[seat];
+    const moves = generateMoves(hand);
+    const move = chooseRealtimeMove(table, seat, hand, moves);
+
+    if (!move) {
+      if (!table.lastPlay) {
+        const fallback = moves.find((item) => item.cards.length === 1);
+        if (fallback) {
+          rtApplyMove(table, entry, hand, fallback);
+          if (hand.length === 0) {
+            rtFinishTableBoard(table, seat);
+            return;
+          }
+          table.turnSeat = rtNextSeat(table, seat);
+          if (!sync) rtSchedule(table, () => rtStepPlay(table));
+          renderRealtime();
+          return;
+        }
+      }
+
+      rtLogLine(table, `${entry.player.name} 不出`);
+      table.passCount++;
+      if (table.passCount >= 2) {
+        table.lastPlay = null;
+        table.lastCards = [];
+        table.lastPlayer = null;
+        table.passCount = 0;
+      }
+      table.turnSeat = rtNextSeat(table, seat);
+      if (!sync) rtSchedule(table, () => rtStepPlay(table));
+      renderRealtime();
+      return;
+    }
+
+    rtApplyMove(table, entry, hand, move);
+
+    if (hand.length === 0) {
+      rtFinishTableBoard(table, seat);
+      return;
+    }
+
+    table.turnSeat = rtNextSeat(table, seat);
+    if (!sync) rtSchedule(table, () => rtStepPlay(table));
+    renderRealtime();
+  }
+
+  function rtFinishTableBoard(table, winnerSeat) {
+    rtClearTimer(table);
+
+    const landlordWon = winnerSeat === table.landlordSeat;
+    const otherTeam = table.landlordTeam.id === table.match.teamA.id ? table.match.teamB : table.match.teamA;
+    const winnerTeam = landlordWon ? table.landlordTeam : otherTeam;
+    const spring = landlordWon && !table.farmerPlayed;
+    const multiplier = 1 + table.bombs + (spring ? 1 : 0);
+    const points = table.bid * multiplier;
+
+    const players = Object.values(table.seatPlayers).map((entry) => {
+      const isLandlord = entry.seat === table.landlordSeat;
+      const isIdle = !table.activeOrder.includes(entry.seat);
+      const role = isIdle ? 'idle' : isLandlord ? 'landlord' : 'farmer';
+      const teamWon = !isIdle && entry.team.id === winnerTeam.id;
+      const rawNet = isIdle ? 0 : isLandlord
+        ? (teamWon ? points : -points)
+        : (teamWon ? points / 2 : -points / 2);
+
+      return {
+        seat: entry.seat,
+        player: entry.player,
+        name: entry.player.name,
+        team: entry.team,
+        role,
+        bid: table.bids[entry.seat] || 0,
+        teamWon,
+        rawNet
+      };
+    });
+
+    table.phase = 'done';
+    table.result = {
+      table: table.index + 1,
+      landlordSeat: table.landlordSeat,
+      landlordName: table.seatPlayers[table.landlordSeat].player.name,
+      landlordTeam: table.landlordTeam,
+      landlordWon,
+      bid: table.bid,
+      multiplier,
+      winnerTeam,
+      points,
+      signedA: winnerTeam.id === table.match.teamA.id ? points : -points,
+      players
+    };
+
+    rtLogLine(table, `${table.seatPlayers[winnerSeat].player.name} 出完，${winnerTeam.name} 得 ${points} 分`);
+
+    renderRealtime();
+    rtCheckBoardDone();
+  }
+
+  function rtCheckBoardDone() {
+    if (!realtime || realtime.finished || realtime.boardProcessed || realtime.pauseAdvance) return;
+    const first = realtime.tables[0];
+    const second = realtime.tables[1];
+    if (!first.result || !second.result) return;
+
+    realtime.boardProcessed = true;
+    const raw = first.result.signedA + second.result.signedA;
+    const margin = Math.min(12, Math.abs(raw));
+    const pointsA = raw > 0 ? margin : 0;
+    const pointsB = raw < 0 ? margin : 0;
+    realtime.scoreA += pointsA;
+    realtime.scoreB += pointsB;
+
+    ['E', 'S', 'W', 'N'].forEach((seat) => {
+      const left = first.result.players.find((entry) => entry.seat === seat);
+      const right = second.result.players.find((entry) => entry.seat === seat);
+      if (!left || !right || left.role === 'idle' || right.role === 'idle') return;
+
+      const difference = Math.round(left.rawNet - right.rawNet);
+      recordPlayer([realtime.gameStats], left.player, left.team, left.role, left.bid, left.teamWon, difference);
+      recordPlayer([realtime.gameStats], right.player, right.team, right.role, right.bid, right.teamWon, -difference);
+    });
+
+    realtime.boards.push({
+      index: realtime.boardIndex,
+      table1: first.result,
+      table2: second.result,
+      pointsA,
+      pointsB
+    });
+
+    const diff = Math.abs(realtime.scoreA - realtime.scoreB);
+    if (season.stageIdx >= 2) {
+      const remaining = realtime.plannedBoards - realtime.boards.length;
+      if (diff > remaining * 12) {
+        rtFinishGame();
+        return;
+      }
+    }
+
+    if (realtime.boards.length < realtime.plannedBoards) {
+      rtStartBoard(realtime, realtime.boardIndex + 1);
+      return;
+    }
+
+    if (diff === 0) {
+      realtime.plannedBoards++;
+      rtStartBoard(realtime, realtime.boardIndex + 1);
+      return;
+    }
+
+    rtFinishGame();
+  }
+
+  function rtFinishGame() {
+    if (!realtime || realtime.finished) return;
+    realtime.finished = true;
+    realtime.tables.forEach(rtClearTimer);
+
+    mergeStatsMap(realtime.match.stats, realtime.gameStats);
+    mergeStatsMap(season.stageStats, realtime.gameStats);
+    mergeStatsMap(season.totalStats, realtime.gameStats);
+
+    const match = realtime.match;
+    const winner = realtime.scoreA > realtime.scoreB ? match.teamA : match.teamB;
+    const game = {
+      index: match.games.length + 1,
+      boards: realtime.boards,
+      scoreA: realtime.scoreA,
+      scoreB: realtime.scoreB,
+      winner,
+      deciding: realtime.deciding,
+      plannedBoards: realtime.plannedBoards,
+      lineupA: match.activeA.map((player) => player.name),
+      lineupB: match.activeB.map((player) => player.name)
+    };
+
+    if (winner.id === match.teamA.id) match.winsA++;
+    else match.winsB++;
+    match.games.push(game);
+
+    if (match.winsA >= match.target || match.winsB >= match.target) {
+      match.done = true;
+      match.winnerTeam = match.winsA > match.winsB ? match.teamA : match.teamB;
+      finalizeMatch(match);
+    }
+
+    lastResult = {
+      scope: 'game',
+      match,
+      games: [game],
+      stats: realtime.gameStats
+    };
+    render();
+    renderRealtime();
+  }
+
+  function rtFinishTableInstant(table) {
+    let guard = 0;
+    while (table.phase !== 'done' && guard++ < 3000) {
+      if (table.phase === 'bidding') rtStepBid(table, true);
+      else if (table.phase === 'playing') rtStepPlay(table, true);
+      else break;
+    }
+  }
+
+  function rtResumeTable(table) {
+    if (!realtime || realtime.finished || table.result) return;
+    if (table.phase === 'bidding') rtSchedule(table, () => rtStepBid(table));
+    else if (table.phase === 'playing') rtSchedule(table, () => rtStepPlay(table));
+  }
+
+  function beginRealtimeGame() {
+    const match = season.currentMatch;
+    if (!match || match.done || season.stageEnded || season.finished) return;
+
+    if (match.games.length > 0) maybeSubstitute(match);
+
+    const deciding = season.stageIdx >= 1 &&
+      match.winsA === match.target - 1 &&
+      match.winsB === match.target - 1;
+    const plannedBoards = deciding ? DECIDING_BOARDS : BOARDS_PER_GAME[season.stageIdx];
+
+    realtime = {
+      match,
+      deciding,
+      plannedBoards,
+      boardIndex: 0,
+      boards: [],
+      scoreA: 0,
+      scoreB: 0,
+      gameStats: createStatsMap(),
+      tables: [
+        { index: 0, match, seatPlayers: rtBuildSeats(match, 0) },
+        { index: 1, match, seatPlayers: rtBuildSeats(match, 1) }
+      ],
+      view: 0,
+      finished: false,
+      instant: false,
+      notice: ''
+    };
+
+    rtResult.hidden = true;
+    rtResult.textContent = '';
+    rtLog.textContent = '';
+    rtNotice.hidden = true;
+    openModal(rtModal);
+    rtStartBoard(realtime, 0);
+  }
+
+  function abortRealtime() {
+    if (!realtime) return;
+    realtime.tables.forEach(rtClearTimer);
+    if (!realtime.finished) {
+      tipEl.textContent = '实时模拟已取消。';
+      render();
+    }
+    realtime = null;
+  }
+
+  function rtCardChip(card) {
+    const chip = document.createElement('span');
+    chip.className = 'card-chip';
+    chip.textContent = card;
+    return chip;
+  }
+
+  function renderRealtime() {
+    if (!realtime) return;
+
+    rtScore.textContent = `第 ${realtime.boardIndex + 1} 副 / 共 ${realtime.plannedBoards} 副 · ${realtime.match.teamA.name} ${realtime.scoreA} : ${realtime.scoreB} ${realtime.match.teamB.name}`;
+
+    document.querySelectorAll('.rt-tab').forEach((button) => {
+      button.classList.toggle('is-active', Number(button.dataset.rtTable) === realtime.view);
+    });
+
+    const viewed = realtime.tables[realtime.view];
+    const other = realtime.tables[realtime.view === 0 ? 1 : 0];
+    if (!viewed.result && other.result) {
+      realtime.notice = `另一桌完成：地主 ${other.result.landlordName}（${other.result.landlordTeam.name}），${other.result.winnerTeam.name} ${other.result.landlordWon ? '地主胜' : '农民胜'}，得 ${other.result.points} 分。`;
+    } else if (viewed.result && !other.result) {
+      realtime.notice = '本桌已完成，等待另一桌…';
+    } else {
+      realtime.notice = '';
+    }
+
+    rtNotice.hidden = !realtime.notice;
+    rtNotice.textContent = realtime.notice;
+    rtFastBoard.disabled = realtime.finished;
+    rtFastGame.disabled = realtime.finished;
+
+    const table = realtime.tables[realtime.view];
+    rtTableView.textContent = '';
+
+    const seats = document.createElement('div');
+    seats.className = 'rt-seats';
+
+    ['E', 'S', 'W', 'N'].forEach((seat) => {
+      const entry = table.seatPlayers[seat];
+      const isIdle = !table.activeOrder.includes(seat);
+      const isLandlord = table.landlordSeat === seat;
+      const card = document.createElement('div');
+      card.className = 'rt-seat';
+      if (table.turnSeat === seat) card.classList.add('is-turn');
+      if (isLandlord) card.classList.add('is-landlord');
+
+      const head = document.createElement('div');
+      head.className = 'rt-seat-head';
+      const name = document.createElement('span');
+      name.className = 'rt-seat-name';
+      name.textContent = entry.player.name;
+      const meta = document.createElement('span');
+      meta.className = 'rt-seat-meta';
+      meta.textContent = `${seat} 位 · ${entry.team.name}${isIdle ? ' · 闲家' : isLandlord ? ' · 地主' : ' · 农民'}`;
+      head.append(name, meta);
+
+      if (table.bids && table.bids[seat] !== undefined) {
+        const bid = document.createElement('span');
+        bid.className = 'rt-seat-role';
+        bid.textContent = table.bids[seat] > 0 ? `叫${table.bids[seat]}分` : '不叫';
+        head.append(bid);
+      }
+
+      card.append(head);
+
+      const hand = document.createElement('div');
+      hand.className = 'rt-hand';
+      if (isIdle) {
+        const empty = document.createElement('span');
+        empty.className = 'rt-empty';
+        empty.textContent = '闲家不下场';
+        hand.append(empty);
+      } else {
+        (table.hands[seat] || []).forEach((rank) => hand.append(rtCardChip(rank)));
+      }
+      card.append(hand);
+      seats.append(card);
+    });
+
+    const center = document.createElement('div');
+    center.className = 'rt-center';
+    const label = document.createElement('span');
+    label.className = 'rt-center-label';
+    label.textContent = '上一手';
+    const last = document.createElement('div');
+    last.className = 'rt-last';
+    if (table.lastCards.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'rt-empty';
+      empty.textContent = table.phase === 'playing' ? '自由出牌' : '等待叫分';
+      last.append(empty);
+    } else {
+      sortCards(table.lastCards).forEach((rank) => last.append(rtCardChip(rank)));
+    }
+
+    const status = document.createElement('p');
+    status.className = 'rt-status-line';
+    if (table.result) {
+      status.textContent = '本桌已结束，等待另一桌…';
+    } else if (table.phase === 'bidding') {
+      const bidder = table.bidOrder[table.bidCursor];
+      status.textContent = `叫分中：${table.seatPlayers[bidder].player.name}`;
+    } else {
+      status.textContent = `轮到：${table.seatPlayers[table.turnSeat].player.name}`;
+    }
+
+    center.append(label, last, status);
+
+    if (realtime.boards.length > 0) {
+      const previous = realtime.boards[realtime.boards.length - 1];
+      const boardScore = document.createElement('p');
+      boardScore.className = 'rt-status-line';
+      boardScore.textContent = `上一副队分：${realtime.match.teamA.name} +${previous.pointsA} : +${previous.pointsB} ${realtime.match.teamB.name}`;
+      center.append(boardScore);
+    }
+
+    rtTableView.append(seats, center);
+    rtLog.textContent = table.log.slice(-5).join('\n');
+
+    if (realtime.finished) showRealtimeResult();
+    else rtResult.hidden = true;
+  }
+
+  function showRealtimeResult() {
+    if (!realtime || !realtime.finished) return;
+
+    rtResult.hidden = false;
+    rtResult.textContent = '';
+
+    const match = realtime.match;
+    const game = match.games[match.games.length - 1];
+    const title = document.createElement('p');
+    title.className = 'qy-result-title';
+    title.textContent = `第 ${game.index} 局结束：${match.teamA.name} ${realtime.scoreA} : ${realtime.scoreB} ${match.teamB.name}`;
+
+    const sub = document.createElement('p');
+    sub.className = 'qy-result-sub';
+    sub.textContent = `${game.winner.name} 获胜 · ${realtime.boards.length} 副 · ${realtime.gameStats.size} 名选手出场`;
+
+    const actions = document.createElement('div');
+    actions.className = 'rt-result-actions';
+
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'btn btn-small';
+    back.textContent = '返回主页面';
+    back.addEventListener('click', () => {
+      closeModal(rtModal);
+      realtime = null;
+      render();
+    });
+    actions.append(back);
+
+    if (!match.done) {
+      const next = document.createElement('button');
+      next.type = 'button';
+      next.className = 'btn btn-small';
+      next.textContent = '继续下一局实时观看';
+      next.addEventListener('click', () => {
+        realtime = null;
+        beginRealtimeGame();
+      });
+      actions.append(next);
+
+      const finish = document.createElement('button');
+      finish.type = 'button';
+      finish.className = 'btn btn-small btn-primary';
+      finish.textContent = '模拟结束本场';
+      finish.addEventListener('click', () => {
+        closeModal(rtModal);
+        realtime = null;
+        simulateWholeMatch();
+        render();
+      });
+      actions.append(finish);
+    }
+
+    rtResult.append(title, sub, actions);
+  }
+
+  function rtSwitchTable(index) {
+    if (!realtime) return;
+    realtime.view = index;
+    renderRealtime();
+  }
+
+  realtimeBtn.addEventListener('click', beginRealtimeGame);
+  document.querySelectorAll('.rt-tab').forEach((button) => {
+    button.addEventListener('click', () => rtSwitchTable(Number(button.dataset.rtTable)));
+  });
+
+  rtFastBoard.addEventListener('click', () => {
+    if (!realtime || realtime.finished) return;
+    realtime.instant = true;
+    realtime.pauseAdvance = true;
+    realtime.tables.forEach(rtClearTimer);
+    rtFinishTableInstant(realtime.tables[0]);
+    rtFinishTableInstant(realtime.tables[1]);
+    realtime.pauseAdvance = false;
+    realtime.instant = false;
+    rtCheckBoardDone();
+    if (realtime && !realtime.finished) realtime.tables.forEach(rtResumeTable);
+    renderRealtime();
+  });
+
+  rtFastGame.addEventListener('click', () => {
+    if (!realtime || realtime.finished) return;
+    realtime.instant = true;
+    realtime.tables.forEach(rtClearTimer);
+    let guard = 0;
+    while (realtime && !realtime.finished && guard++ < 500) {
+      realtime.pauseAdvance = true;
+      rtFinishTableInstant(realtime.tables[0]);
+      rtFinishTableInstant(realtime.tables[1]);
+      realtime.pauseAdvance = false;
+      rtCheckBoardDone();
+    }
+    realtime.instant = false;
+    if (realtime && !realtime.finished) realtime.tables.forEach(rtResumeTable);
+    renderRealtime();
+  });
+
+  rtClose.addEventListener('click', abortRealtime);
+  rtModal.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close]')) abortRealtime();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !rtModal.hidden) abortRealtime();
+  });
 
   singleBtn.addEventListener('click', simulateSingleGame);
   wholeBtn.addEventListener('click', simulateWholeMatch);
