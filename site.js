@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.20';
+  const VERSION = 'v1.0.21';
 
   const RELEASES = [
+    {
+      version: 'v1.0.21',
+      date: '2026-11-20',
+      items: [
+        '实时观赛叫分更积极：好牌更常叫 3 分；第二个叫分者在手牌尚可时主动叫 2～3 分，压制第三家叫地主。'
+      ]
+    },
     {
       version: 'v1.0.20',
       date: '2026-11-20',

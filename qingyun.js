@@ -472,21 +472,25 @@
     return power;
   }
 
-  function chooseBid(entry, hand, highestBid) {
+  function chooseBid(entry, hand, highestBid, bidIndex) {
     const highCards = hand.filter((card) => card === '2' || card === 'X' || card === 'D').length;
-    let desire;
-
-    if (highCards >= 4) {
-      desire = 3;
-    } else {
-      desire = handPower(hand) + (entry.player.strength - 70) * 0.45 + (Math.random() - 0.5) * 10;
-      desire += highCards * 3;
-    }
+    const desire = handPower(hand) +
+      (entry.player.strength - 70) * 0.35 +
+      (Math.random() - 0.5) * 6 +
+      highCards * 2;
 
     let bid = 0;
-    if (desire > 42) bid = 3;
-    else if (desire > 28) bid = 2;
-    else if (desire > 15) bid = 1;
+    if (desire >= 14) bid = 3;
+    else if (desire >= 8) bid = 2;
+    else if (desire >= 2) bid = 1;
+
+    if (highCards >= 4) bid = 3;
+
+    if (bidIndex === 1) {
+      if (highestBid === 2 && desire >= 8) bid = 3;
+      else if (desire >= 6) bid = Math.max(bid, 2);
+      if (desire >= 11 && highestBid < 3) bid = 3;
+    }
 
     if (bid <= highestBid) bid = 0;
     return bid;
@@ -2283,7 +2287,7 @@
 
     const seat = table.bidOrder[table.bidCursor];
     const entry = table.seatPlayers[seat];
-    const bid = chooseBid(entry, table.hands[seat], table.highestBid);
+    const bid = chooseBid(entry, table.hands[seat], table.highestBid, table.bidCursor);
     table.bids[seat] = bid;
 
     if (bid > table.highestBid) {
