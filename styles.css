@@ -2328,6 +2328,12 @@ body.modal-open {
   color: #7a1f00;
 }
 
+.rt-card.is-bottom {
+  background: linear-gradient(180deg, #eef6ff, #cfe4ff);
+  border-color: #8fb9f5;
+  box-shadow: 0 0 0 1px rgba(143, 185, 245, 0.55), 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
 .rt-rank {
   display: block;
 }

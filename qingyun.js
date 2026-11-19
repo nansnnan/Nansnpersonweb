@@ -525,22 +525,123 @@
     return CARD_VALUE[sortCards(move.cards)[0]];
   }
 
+  function estimateMoves(cards) {
+    const counts = {};
+    cards.forEach((card) => {
+      counts[card] = (counts[card] || 0) + 1;
+    });
+
+    const ranks = RANKS.slice(0, -1);
+    let moves = 0;
+
+    if (counts.X && counts.D) {
+      moves++;
+      counts.X--;
+      counts.D--;
+    }
+
+    RANKS.forEach((rank) => {
+      if (counts[rank] >= 4) {
+        moves++;
+        counts[rank] -= 4;
+      }
+    });
+
+    const take = (rank, count) => {
+      if ((counts[rank] || 0) < count) return false;
+      counts[rank] -= count;
+      return true;
+    };
+
+    const takeRun = (minCount, minLength, width) => {
+      let found = false;
+      for (;;) {
+        let best = [];
+        let current = [];
+        ranks.forEach((rank) => {
+          if ((counts[rank] || 0) >= minCount) {
+            current.push(rank);
+          } else {
+            if (current.length > best.length) best = current;
+            current = [];
+          }
+        });
+        if (current.length > best.length) best = current;
+        if (best.length < minLength) break;
+
+        best.forEach((rank) => {
+          counts[rank] -= width;
+        });
+        moves++;
+        found = true;
+      }
+      return found;
+    };
+
+    takeRun(3, 2, 3);
+    takeRun(1, 5, 1);
+    takeRun(2, 3, 2);
+
+    RANKS.forEach((rank) => {
+      if (counts[rank] >= 3) {
+        counts[rank] -= 3;
+        moves++;
+        const wing = RANKS.find((other) => other !== rank && counts[other] >= 2);
+        if (wing) counts[wing] -= 2;
+        else {
+          const single = RANKS.find((other) => other !== rank && counts[other] >= 1);
+          if (single) counts[single] -= 1;
+        }
+      }
+    });
+
+    RANKS.forEach((rank) => {
+      while (counts[rank] >= 2) {
+        counts[rank] -= 2;
+        moves++;
+      }
+    });
+
+    RANKS.forEach((rank) => {
+      if (counts[rank] > 0) moves += counts[rank];
+    });
+    if (counts.X > 0) moves += counts.X;
+    if (counts.D > 0) moves += counts.D;
+
+    return moves;
+  }
+
   function leadMoveScore(move, hand) {
     const remain = cardsWithout(hand, move.cards);
     const before = handStructure(hand);
     const after = handStructure(remain);
     const bomb = move.type === 'bomb' || move.type === 'rocket';
 
-    let score = (after.singles - before.singles) * 7;
-    score += (after.pairs - before.pairs) * 2;
+    let score = estimateMoves(remain) * 8;
+    score += (after.singles - before.singles) * 4;
+    score += (after.pairs - before.pairs) * 1.5;
     score += (before.bombs - after.bombs) * 26;
     score += bomb ? 55 : 0;
-    score += moveTopValue(move) * 0.35;
+    score += moveTopValue(move) * 0.3;
+    const typeOrder = {
+      single: 0,
+      pair: 1,
+      'stra-pair': 2,
+      straight: 3,
+      three1: 4,
+      three2: 4,
+      triple: 5,
+      plane1: 6,
+      plane2: 6,
+      plane: 7,
+      four2: 8,
+      four2pair: 8
+    };
+    score += (typeOrder[move.type] ?? 6) * 0.7;
     if ((move.type === 'single' || move.type === 'pair') && moveTopValue(move) >= 14 && hand.length > 1) {
       score += 10;
     }
-    score -= move.cards.length * 1.6;
-    if (['straight', 'stra-pair', 'plane', 'plane1', 'plane2'].includes(move.type)) score -= 6;
+    score -= move.cards.length * 1.2;
     if (remain.length === 0) score -= 1000;
     return score;
   }
@@ -551,8 +652,9 @@
     const after = handStructure(remain);
     const bomb = move.type === 'bomb' || move.type === 'rocket';
 
-    let score = (after.singles - before.singles) * 8;
-    score += (after.pairs - before.pairs) * 2;
+    let score = estimateMoves(remain) * 10;
+    score += (after.singles - before.singles) * 5;
+    score += (after.pairs - before.pairs) * 1.5;
     score += (before.bombs - after.bombs) * 30;
     score += bomb ? 50 : 0;
     score += moveTopValue(move) * 0.7;
@@ -606,6 +708,23 @@
         }
       }
 
+      const opponents = table.activeOrder.filter((other) =>
+        other !== seat &&
+        table.seatPlayers[other].team.id !== entry.team.id &&
+        (table.hands[other] || []).length > 0
+      );
+      const danger = opponents.some((other) => table.hands[other].length <= 2);
+
+      if (danger) {
+        const bombs = leadMoves.filter((move) => move.type === 'bomb' || move.type === 'rocket');
+        if (bombs.length > 0) return bombs[0];
+        const singles = leadMoves.filter((move) => move.type === 'single');
+        if (singles.length > 0) {
+          singles.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+          return singles[0];
+        }
+      }
+
       return pickBestMove(leadMoves, hand, entry.player.strength, false);
     }
 
@@ -646,7 +765,7 @@
     const normal = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
 
     if (normal.length > 0) {
-      if (lastLeft <= 2) {
+      if (lastLeft <= 3) {
         normal.sort((a, b) => moveTopValue(b) - moveTopValue(a));
         return normal[0];
       }
@@ -654,9 +773,10 @@
     }
 
     const lastValue = moveTopValue(table.lastPlay);
-    const allowBomb = lastLeft <= 2 ||
+    const allowBomb = lastLeft <= 3 ||
       table.lastCards.length > 3 ||
       lastValue >= 14 ||
+      hand.length <= 6 ||
       table.lastPlay.type === 'bomb' ||
       table.lastPlay.type === 'rocket';
 
@@ -2591,13 +2711,23 @@
     return element;
   }
 
-  function rtHandElement(hand, goldRanks) {
+  function rtHandElement(hand, goldRanks, bottomCards) {
     const holder = document.createElement('div');
     holder.className = 'rt-hand';
     const seen = {};
+    const bottomCounts = {};
+    (bottomCards || []).forEach((card) => {
+      bottomCounts[card] = (bottomCounts[card] || 0) + 1;
+    });
+
     sortCards(hand).forEach((card) => {
       seen[card] = (seen[card] || 0) + 1;
-      holder.append(rtCardElement(card, seen[card] - 1, goldRanks && goldRanks.has(card)));
+      const element = rtCardElement(card, seen[card] - 1, goldRanks && goldRanks.has(card));
+      if (bottomCounts[card] > 0) {
+        element.classList.add('is-bottom');
+        bottomCounts[card]--;
+      }
+      holder.append(element);
     });
     return holder;
   }
@@ -2658,7 +2788,7 @@
     if (entry.seat === table.landlordSeat) row.classList.add('is-landlord');
 
     row.append(rtAvatarWrap(entry, table, match, options.badge));
-    if (options.hand) row.append(rtHandElement(options.hand, options.goldRanks));
+    if (options.hand) row.append(rtHandElement(options.hand, options.goldRanks, options.bottomCards));
     return row;
   }
 
@@ -2751,6 +2881,7 @@
     if (landlord) {
       bottom.append(rtPlayerRow(landlord, table, match, {
         hand: table.hands[landlord.seat],
+        bottomCards: table.bottom,
         badge: `叫${table.bid}分 ×${multiplier}`
       }));
     }
