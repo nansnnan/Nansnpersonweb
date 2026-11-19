@@ -1956,6 +1956,23 @@
     hand.sort((a, b) => CARD_VALUE[b] - CARD_VALUE[a]);
   }
 
+  const RT_MOVE_NAMES = {
+    single: '单张',
+    pair: '对子',
+    triple: '三张',
+    three1: '三带一',
+    three2: '三带二',
+    straight: '顺子',
+    'stra-pair': '连对',
+    plane: '飞机',
+    plane1: '飞机带单',
+    plane2: '飞机带对',
+    four2: '四带二',
+    four2pair: '四带两对',
+    bomb: '炸弹',
+    rocket: '王炸'
+  };
+
   function rtApplyMove(table, entry, hand, move) {
     rtRemoveCards(hand, move.cards);
     if (move.type === 'bomb' || move.type === 'rocket') table.bombs++;
@@ -1966,7 +1983,7 @@
     table.lastPlayer = { seat: entry.seat, team: entry.team };
     table.passCount = 0;
 
-    rtLogLine(table, `${entry.player.name} 出 ${sortCards(move.cards).join(' ')}（${move.type}）`);
+    rtLogLine(table, `${entry.player.name} 出 ${sortCards(move.cards).join(' ')}（${RT_MOVE_NAMES[move.type] || move.type}）`);
   }
 
   function rtStepPlay(table, sync = false) {
@@ -2240,10 +2257,243 @@
     return chip;
   }
 
+  function rtTeamClass(team, match) {
+    return team.id === match.teamA.id ? 'team-a' : 'team-b';
+  }
+
+  function rtCardElement(card, occurrence, gold) {
+    const suits = ['♠', '♥', '♣', '♦'];
+    const element = document.createElement('span');
+    element.className = 'rt-card';
+    if (gold) element.classList.add('is-bomb');
+
+    let rank = card;
+    let suit = suits[occurrence % 4];
+    if (card === 'T') rank = '10';
+    if (card === 'X') {
+      rank = '小';
+      suit = '王';
+    }
+    if (card === 'D') {
+      rank = '大';
+      suit = '王';
+    }
+
+    if (card === 'X' || card === 'D' || suit === '♥' || suit === '♦') {
+      element.classList.add('is-red');
+    }
+
+    const rankEl = document.createElement('span');
+    rankEl.className = 'rt-rank';
+    rankEl.textContent = rank;
+    const suitEl = document.createElement('span');
+    suitEl.className = 'rt-suit';
+    suitEl.textContent = suit;
+    element.append(rankEl, suitEl);
+    return element;
+  }
+
+  function rtHandElement(hand, goldRanks) {
+    const holder = document.createElement('div');
+    holder.className = 'rt-hand';
+    const seen = {};
+    sortCards(hand).forEach((card) => {
+      seen[card] = (seen[card] || 0) + 1;
+      holder.append(rtCardElement(card, seen[card] - 1, goldRanks && goldRanks.has(card)));
+    });
+    return holder;
+  }
+
+  function bombRanks(hand) {
+    const counts = {};
+    hand.forEach((card) => {
+      counts[card] = (counts[card] || 0) + 1;
+    });
+    const ranks = new Set();
+    Object.keys(counts).forEach((rank) => {
+      if (counts[rank] >= 4) ranks.add(rank);
+    });
+    if (counts.X && counts.D) {
+      ranks.add('X');
+      ranks.add('D');
+    }
+    return ranks;
+  }
+
+  function rtAvatarWrap(entry, table, match, badge) {
+    const wrap = document.createElement('div');
+    wrap.className = 'rt-avatar-wrap';
+
+    if (badge) {
+      const badgeEl = document.createElement('span');
+      badgeEl.className = 'rt-player-badge';
+      badgeEl.textContent = badge;
+      wrap.append(badgeEl);
+    }
+
+    const avatar = document.createElement('div');
+    avatar.className = 'rt-avatar';
+    const initial = entry.player.name.trim().charAt(0);
+    avatar.textContent = initial ? initial.toUpperCase() : '?';
+    if (rtTeamClass(entry.team, match) === 'team-a') avatar.classList.add('team-a');
+    else avatar.classList.add('team-b');
+
+    const nameBar = document.createElement('div');
+    nameBar.className = `rt-name-bar ${rtTeamClass(entry.team, match)}`;
+    nameBar.textContent = entry.player.name;
+
+    const teamLine = document.createElement('div');
+    teamLine.className = 'rt-team-line';
+    teamLine.textContent = entry.team.name;
+
+    wrap.append(avatar, nameBar, teamLine);
+    return wrap;
+  }
+
+  function rtPlayerRow(entry, table, match, options = {}) {
+    const row = document.createElement('div');
+    row.className = `rt-player ${rtTeamClass(entry.team, match)}`;
+    const activeSeat = table.phase === 'bidding'
+      ? table.bidOrder[table.bidCursor]
+      : table.turnSeat;
+    if (entry.seat === activeSeat) row.classList.add('is-turn');
+    if (entry.seat === table.landlordSeat) row.classList.add('is-landlord');
+
+    row.append(rtAvatarWrap(entry, table, match, options.badge));
+    if (options.hand) row.append(rtHandElement(options.hand, options.goldRanks));
+    return row;
+  }
+
+  function rtIdlePanel(entry, match) {
+    const panel = document.createElement('div');
+    panel.className = 'rt-idle-panel';
+    panel.append(rtAvatarWrap(entry, null, match, '闲家'));
+    const text = document.createElement('p');
+    text.className = 'rt-idle-text';
+    text.textContent = '等待中';
+    panel.append(text);
+    return panel;
+  }
+
+  function rtBiddingView(table, match) {
+    const layout = document.createElement('div');
+    layout.className = 'rt-bid-layout';
+
+    const players = document.createElement('div');
+    players.className = 'rt-bid-players';
+
+    table.bidOrder.forEach((seat) => {
+      const entry = table.seatPlayers[seat];
+      const bid = table.bids[seat];
+      let badge = '';
+      if (bid !== undefined) badge = bid > 0 ? `叫${bid}分` : '不叫';
+      else if (table.bidOrder[table.bidCursor] === seat) badge = '思考中';
+
+      players.append(rtPlayerRow(entry, table, match, {
+        hand: table.hands[seat],
+        goldRanks: bombRanks(table.hands[seat]),
+        badge
+      }));
+    });
+
+    layout.append(players, rtIdlePanel(table.seatPlayers[table.idleSeat], match));
+    return layout;
+  }
+
+  function rtPlayingView(table, match) {
+    const layout = document.createElement('div');
+    layout.className = 'rt-play-layout';
+
+    const active = table.activeOrder.map((seat) => table.seatPlayers[seat]);
+    const landlord = active.find((entry) => entry.seat === table.landlordSeat);
+    const farmers = active.filter((entry) => entry.seat !== table.landlordSeat);
+    const multiplier = table.result ? table.result.multiplier : 1 + table.bombs;
+
+    const top = document.createElement('div');
+    top.className = 'rt-play-top';
+    farmers.forEach((entry) => {
+      top.append(rtPlayerRow(entry, table, match, {
+        hand: table.hands[entry.seat]
+      }));
+    });
+
+    const center = document.createElement('div');
+    center.className = 'rt-play-center';
+    const label = document.createElement('span');
+    label.className = 'rt-center-label';
+    label.textContent = '上一手';
+    center.append(label);
+    if (table.lastCards.length === 0) {
+      const empty = document.createElement('span');
+      empty.className = 'rt-last-empty';
+      empty.textContent = '自由出牌';
+      center.append(empty);
+    } else {
+      const lastHand = rtHandElement(table.lastCards, null);
+      lastHand.classList.add('rt-last-hand');
+      center.append(lastHand);
+    }
+
+    const status = document.createElement('p');
+    status.className = 'rt-status-line';
+    if (table.result) status.textContent = '本桌已结束，等待另一桌…';
+    else if (table.turnSeat) status.textContent = `轮到：${table.seatPlayers[table.turnSeat].player.name}`;
+    center.append(status);
+
+    if (realtime.boards.length > 0) {
+      const previous = realtime.boards[realtime.boards.length - 1];
+      const boardScore = document.createElement('p');
+      boardScore.className = 'rt-board-score';
+      boardScore.textContent = `上一副：${match.teamA.name} +${previous.pointsA} : +${previous.pointsB} ${match.teamB.name}`;
+      center.append(boardScore);
+    }
+
+    const bottom = document.createElement('div');
+    bottom.className = 'rt-play-bottom';
+    if (landlord) {
+      bottom.append(rtPlayerRow(landlord, table, match, {
+        hand: table.hands[landlord.seat],
+        badge: `叫${table.bid}分 ×${multiplier}`
+      }));
+    }
+
+    layout.append(top, center, bottom);
+    return layout;
+  }
+
   function renderRealtime() {
     if (!realtime) return;
 
-    rtScore.textContent = `第 ${realtime.boardIndex + 1} 副 / 共 ${realtime.plannedBoards} 副 · ${realtime.match.teamA.name} ${realtime.scoreA} : ${realtime.scoreB} ${realtime.match.teamB.name}`;
+    const match = realtime.match;
+    rtScore.textContent = '';
+
+    const scorebar = document.createElement('div');
+    scorebar.className = 'rt-scorebar';
+
+    const left = document.createElement('div');
+    left.className = 'rt-score-team team-a';
+    const leftName = document.createElement('span');
+    leftName.className = 'rt-score-name';
+    leftName.textContent = match.teamA.name;
+    const leftScore = document.createElement('strong');
+    leftScore.textContent = realtime.scoreA;
+    left.append(leftName, leftScore);
+
+    const middle = document.createElement('div');
+    middle.className = 'rt-score-mid';
+    middle.textContent = `第 ${realtime.boardIndex + 1} 副 / 共 ${realtime.plannedBoards} 副`;
+
+    const right = document.createElement('div');
+    right.className = 'rt-score-team team-b';
+    const rightScore = document.createElement('strong');
+    rightScore.textContent = realtime.scoreB;
+    const rightName = document.createElement('span');
+    rightName.className = 'rt-score-name';
+    rightName.textContent = match.teamB.name;
+    right.append(rightScore, rightName);
+
+    scorebar.append(left, middle, right);
+    rtScore.append(scorebar);
 
     document.querySelectorAll('.rt-tab').forEach((button) => {
       button.classList.toggle('is-active', Number(button.dataset.rtTable) === realtime.view);
@@ -2264,92 +2514,14 @@
     rtFastBoard.disabled = realtime.finished;
     rtFastGame.disabled = realtime.finished;
 
-    const table = realtime.tables[realtime.view];
     rtTableView.textContent = '';
-
-    const seats = document.createElement('div');
-    seats.className = 'rt-seats';
-
-    ['E', 'S', 'W', 'N'].forEach((seat) => {
-      const entry = table.seatPlayers[seat];
-      const isIdle = !table.activeOrder.includes(seat);
-      const isLandlord = table.landlordSeat === seat;
-      const card = document.createElement('div');
-      card.className = 'rt-seat';
-      if (table.turnSeat === seat) card.classList.add('is-turn');
-      if (isLandlord) card.classList.add('is-landlord');
-
-      const head = document.createElement('div');
-      head.className = 'rt-seat-head';
-      const name = document.createElement('span');
-      name.className = 'rt-seat-name';
-      name.textContent = entry.player.name;
-      const meta = document.createElement('span');
-      meta.className = 'rt-seat-meta';
-      meta.textContent = `${seat} 位 · ${entry.team.name}${isIdle ? ' · 闲家' : isLandlord ? ' · 地主' : ' · 农民'}`;
-      head.append(name, meta);
-
-      if (table.bids && table.bids[seat] !== undefined) {
-        const bid = document.createElement('span');
-        bid.className = 'rt-seat-role';
-        bid.textContent = table.bids[seat] > 0 ? `叫${table.bids[seat]}分` : '不叫';
-        head.append(bid);
-      }
-
-      card.append(head);
-
-      const hand = document.createElement('div');
-      hand.className = 'rt-hand';
-      if (isIdle) {
-        const empty = document.createElement('span');
-        empty.className = 'rt-empty';
-        empty.textContent = '闲家不下场';
-        hand.append(empty);
-      } else {
-        (table.hands[seat] || []).forEach((rank) => hand.append(rtCardChip(rank)));
-      }
-      card.append(hand);
-      seats.append(card);
-    });
-
-    const center = document.createElement('div');
-    center.className = 'rt-center';
-    const label = document.createElement('span');
-    label.className = 'rt-center-label';
-    label.textContent = '上一手';
-    const last = document.createElement('div');
-    last.className = 'rt-last';
-    if (table.lastCards.length === 0) {
-      const empty = document.createElement('span');
-      empty.className = 'rt-empty';
-      empty.textContent = table.phase === 'playing' ? '自由出牌' : '等待叫分';
-      last.append(empty);
+    const table = realtime.tables[realtime.view];
+    if (table.phase === 'bidding') {
+      rtTableView.append(rtBiddingView(table, match));
     } else {
-      sortCards(table.lastCards).forEach((rank) => last.append(rtCardChip(rank)));
+      rtTableView.append(rtPlayingView(table, match));
     }
 
-    const status = document.createElement('p');
-    status.className = 'rt-status-line';
-    if (table.result) {
-      status.textContent = '本桌已结束，等待另一桌…';
-    } else if (table.phase === 'bidding') {
-      const bidder = table.bidOrder[table.bidCursor];
-      status.textContent = `叫分中：${table.seatPlayers[bidder].player.name}`;
-    } else {
-      status.textContent = `轮到：${table.seatPlayers[table.turnSeat].player.name}`;
-    }
-
-    center.append(label, last, status);
-
-    if (realtime.boards.length > 0) {
-      const previous = realtime.boards[realtime.boards.length - 1];
-      const boardScore = document.createElement('p');
-      boardScore.className = 'rt-status-line';
-      boardScore.textContent = `上一副队分：${realtime.match.teamA.name} +${previous.pointsA} : +${previous.pointsB} ${realtime.match.teamB.name}`;
-      center.append(boardScore);
-    }
-
-    rtTableView.append(seats, center);
     rtLog.textContent = table.log.slice(-5).join('\n');
 
     if (realtime.finished) showRealtimeResult();
