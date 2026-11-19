@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.15';
+  const VERSION = 'v1.0.16';
 
   const RELEASES = [
+    {
+      version: 'v1.0.16',
+      date: '2026-11-19',
+      items: [
+        '实时比赛出牌顺序改为：地主 → 右上农民 → 左上农民 → 地主。'
+      ]
+    },
     {
       version: 'v1.0.15',
       date: '2026-11-19',

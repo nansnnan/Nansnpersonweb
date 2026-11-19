@@ -1929,6 +1929,10 @@
     table.hands[table.landlordSeat] = sortCards([...table.hands[table.landlordSeat], ...table.bottom]);
     table.phase = 'playing';
     table.turnSeat = table.landlordSeat;
+    const farmers = table.activeOrder.filter((seat) => seat !== table.landlordSeat);
+    table.turnOrder = farmers.length === 2
+      ? [table.landlordSeat, farmers[1], farmers[0]]
+      : [...table.activeOrder];
     table.lastPlay = null;
     table.lastCards = [];
     table.lastPlayer = null;
@@ -1943,7 +1947,7 @@
   }
 
   function rtNextSeat(table, seat) {
-    const order = table.activeOrder;
+    const order = table.turnOrder && table.turnOrder.length ? table.turnOrder : table.activeOrder;
     const index = order.indexOf(seat);
     return order[(index + 1) % order.length];
   }
