@@ -473,7 +473,16 @@
   }
 
   function chooseBid(entry, hand, highestBid) {
-    let desire = handPower(hand) + (entry.player.strength - 70) * 0.45 + (Math.random() - 0.5) * 10;
+    const highCards = hand.filter((card) => card === '2' || card === 'X' || card === 'D').length;
+    let desire;
+
+    if (highCards >= 4) {
+      desire = 3;
+    } else {
+      desire = handPower(hand) + (entry.player.strength - 70) * 0.45 + (Math.random() - 0.5) * 10;
+      desire += highCards * 3;
+    }
+
     let bid = 0;
     if (desire > 42) bid = 3;
     else if (desire > 28) bid = 2;
@@ -483,39 +492,134 @@
     return bid;
   }
 
-  function moveCost(move, hand, table) {
+  function cardsWithout(hand, cards) {
+    const rest = [...hand];
+    cards.forEach((card) => {
+      const index = rest.indexOf(card);
+      if (index > -1) rest.splice(index, 1);
+    });
+    return rest;
+  }
+
+  function handStructure(cards) {
+    const counts = {};
+    cards.forEach((card) => {
+      counts[card] = (counts[card] || 0) + 1;
+    });
+
+    let singles = 0;
+    let pairs = 0;
+    let bombs = 0;
+    Object.values(counts).forEach((count) => {
+      if (count === 1) singles++;
+      if (count === 2) pairs++;
+      if (count >= 4) bombs++;
+    });
+    if (counts.X && counts.D) bombs++;
+
+    return { singles, pairs, bombs };
+  }
+
+  function moveTopValue(move) {
+    if (Number.isFinite(move.val)) return move.val;
+    return CARD_VALUE[sortCards(move.cards)[0]];
+  }
+
+  function leadMoveScore(move, hand) {
+    const remain = cardsWithout(hand, move.cards);
+    const before = handStructure(hand);
+    const after = handStructure(remain);
     const bomb = move.type === 'bomb' || move.type === 'rocket';
-    let cost = CARD_VALUE[move.cards[0]];
-    cost += bomb ? 70 : 0;
-    cost -= move.cards.length * 2;
-    if (move.cards.length === hand.length) cost -= 500;
-    if (table && !table.lastPlay && bomb) cost += 30;
-    return cost;
+
+    let score = (after.singles - before.singles) * 7;
+    score += (after.pairs - before.pairs) * 2;
+    score += (before.bombs - after.bombs) * 26;
+    score += bomb ? 55 : 0;
+    score += moveTopValue(move) * 0.35;
+    score -= move.cards.length * 1.6;
+    if (['straight', 'stra-pair', 'plane', 'plane1', 'plane2'].includes(move.type)) score -= 6;
+    if (remain.length === 0) score -= 1000;
+    return score;
+  }
+
+  function followMoveScore(move, hand) {
+    const remain = cardsWithout(hand, move.cards);
+    const before = handStructure(hand);
+    const after = handStructure(remain);
+    const bomb = move.type === 'bomb' || move.type === 'rocket';
+
+    let score = (after.singles - before.singles) * 8;
+    score += (after.pairs - before.pairs) * 2;
+    score += (before.bombs - after.bombs) * 30;
+    score += bomb ? 50 : 0;
+    score += moveTopValue(move) * 0.7;
+    score -= move.cards.length;
+    if (remain.length === 0) score -= 1000;
+    return score;
+  }
+
+  function pickBestMove(candidates, hand, strength, follow) {
+    const scored = candidates.map((move) => ({
+      move,
+      score: follow ? followMoveScore(move, hand) : leadMoveScore(move, hand)
+    }));
+    scored.sort((a, b) => a.score - b.score);
+
+    const quality = Math.min(1, Math.max(0, (strength - 50) / 40));
+    const poolSize = Math.max(1, Math.round(4 - quality * 3));
+    const pool = scored.slice(0, Math.min(poolSize, scored.length));
+    return pool[Math.floor(Math.random() * pool.length)].move;
   }
 
   function chooseRealtimeMove(table, seat, hand, moves) {
     const entry = table.seatPlayers[seat];
-    let candidates = table.lastPlay
-      ? moves.filter((move) => beats(table.lastPlay, move))
-      : moves;
 
-    if (table.lastPlay && table.lastPlayer && table.lastPlayer.team === entry.team) {
-      const finish = candidates.find((move) => move.cards.length === hand.length);
-      if (!finish) {
-        const weak = entry.player.strength < 65 && Math.random() < 0.25;
-        if (!weak) return null;
-      }
+    if (!table.lastPlay) {
+      return pickBestMove(moves, hand, entry.player.strength, false);
     }
 
+    let candidates = moves.filter((move) => beats(table.lastPlay, move));
     if (candidates.length === 0) return null;
+    if (!table.lastPlayer) return pickBestMove(candidates, hand, entry.player.strength, true);
 
-    candidates = candidates.map((move) => ({ move, cost: moveCost(move, hand, table) }));
-    candidates.sort((a, b) => a.cost - b.cost);
+    const lastEntry = table.seatPlayers[table.lastPlayer.seat];
+    const ally = lastEntry && lastEntry.team.id === entry.team.id;
+    const lastLeft = lastEntry ? (table.hands[lastEntry.seat] || []).length : 99;
 
-    const quality = Math.min(1, Math.max(0, (entry.player.strength - 50) / 40));
-    const poolSize = Math.max(1, Math.round(4 - quality * 3));
-    const pool = candidates.slice(0, poolSize);
-    return pool[Math.floor(Math.random() * pool.length)].move;
+    if (ally) {
+      if (lastLeft <= 4 && hand.length - table.lastCards.length > 4) return null;
+
+      const nonBomb = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
+      if (nonBomb.length > 0) candidates = nonBomb;
+
+      const best = pickBestMove(candidates, hand, entry.player.strength, true);
+      if (!best) return null;
+      if (best.cards.length === hand.length) return best;
+
+      const before = handStructure(hand);
+      const after = handStructure(cardsWithout(hand, best.cards));
+      const improved = before.singles - after.singles;
+      if (improved >= 2) return best;
+
+      const weakFumble = entry.player.strength < 65 && Math.random() < 0.16;
+      return weakFumble ? best : null;
+    }
+
+    if (table.lastPlay.type === 'rocket') return null;
+
+    if (lastLeft <= 2) {
+      const normal = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
+      const pool = normal.length > 0 ? normal : candidates;
+      pool.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+      return pool[0];
+    }
+
+    if (lastLeft > 10) {
+      candidates = candidates.filter((move) => move.type !== 'rocket');
+      if (candidates.length === 0) return null;
+    }
+
+    return pickBestMove(candidates, hand, entry.player.strength, true);
   }
 
   function makeBoardHands() {

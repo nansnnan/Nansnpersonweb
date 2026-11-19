@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.16';
+  const VERSION = 'v1.0.17';
 
   const RELEASES = [
+    {
+      version: 'v1.0.17',
+      date: '2026-11-19',
+      items: [
+        '实时比赛 AI 参照参考项目重写出牌逻辑：优先一手走完，尽量拆出长顺子、减少单张、保护炸弹；队友拥有牌权时不抢，对手临近出完时才使用大牌。'
+      ]
+    },
     {
       version: 'v1.0.16',
       date: '2026-11-19',
