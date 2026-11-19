@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.17';
+  const VERSION = 'v1.0.18';
 
   const RELEASES = [
+    {
+      version: 'v1.0.18',
+      date: '2026-11-19',
+      items: [
+        '参考 rlcard-showdown / DouZero 的候选动作价值思路，为实时出牌 AI 增加自我对弈推演：实力较高的选手会对候选牌型进行多次快速模拟，并按团队胜率选择出牌。'
+      ]
+    },
     {
       version: 'v1.0.17',
       date: '2026-11-19',

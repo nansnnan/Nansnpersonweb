@@ -622,6 +622,172 @@
     return pickBestMove(candidates, hand, entry.player.strength, true);
   }
 
+  function bestScoredMove(candidates, hand, follow, randomness = 0) {
+    if (candidates.length === 0) return null;
+    const scored = candidates.map((move) => ({
+      move,
+      score: follow ? followMoveScore(move, hand) : leadMoveScore(move, hand)
+    }));
+    scored.sort((a, b) => a.score - b.score);
+    if (scored.length > 1 && Math.random() < randomness) {
+      return scored[1].move;
+    }
+    return scored[0].move;
+  }
+
+  function cloneSimTable(table) {
+    const hands = {};
+    table.activeOrder.forEach((seat) => {
+      hands[seat] = [...table.hands[seat]];
+    });
+    return {
+      hands,
+      activeOrder: [...table.activeOrder],
+      turnOrder: [...table.turnOrder],
+      turnSeat: table.turnSeat,
+      lastPlay: table.lastPlay,
+      lastCards: [...table.lastCards],
+      lastPlayer: table.lastPlayer ? { ...table.lastPlayer } : null,
+      passCount: table.passCount,
+      bombs: table.bombs,
+      farmerPlayed: table.farmerPlayed,
+      landlordSeat: table.landlordSeat,
+      landlordTeam: table.landlordTeam,
+      seatPlayers: table.seatPlayers,
+      match: table.match
+    };
+  }
+
+  function simNextSeat(table, seat) {
+    const index = table.turnOrder.indexOf(seat);
+    return table.turnOrder[(index + 1) % table.turnOrder.length];
+  }
+
+  function simWinnerTeam(table, seat) {
+    if (seat === table.landlordSeat) return table.landlordTeam;
+    return table.landlordTeam.id === table.match.teamA.id ? table.match.teamB : table.match.teamA;
+  }
+
+  function simApplyMove(table, seat, move) {
+    if (!move) {
+      table.passCount++;
+      if (table.passCount >= 2) {
+        table.lastPlay = null;
+        table.lastCards = [];
+        table.lastPlayer = null;
+        table.passCount = 0;
+      }
+      table.turnSeat = simNextSeat(table, seat);
+      return null;
+    }
+
+    rtRemoveCards(table.hands[seat], move.cards);
+    if (move.type === 'bomb' || move.type === 'rocket') table.bombs++;
+    if (seat !== table.landlordSeat) table.farmerPlayed = true;
+    table.lastPlay = move;
+    table.lastCards = move.cards;
+    table.lastPlayer = { seat, team: table.seatPlayers[seat].team };
+    table.passCount = 0;
+
+    if (table.hands[seat].length === 0) return simWinnerTeam(table, seat);
+    table.turnSeat = simNextSeat(table, seat);
+    return null;
+  }
+
+  function simChooseMove(table, seat) {
+    const entry = table.seatPlayers[seat];
+    const hand = table.hands[seat];
+    const moves = generateMoves(hand);
+
+    if (!table.lastPlay) {
+      return bestScoredMove(moves, hand, false, 0.3);
+    }
+
+    let candidates = moves.filter((move) => beats(table.lastPlay, move));
+    if (candidates.length === 0) return null;
+
+    const lastEntry = table.seatPlayers[table.lastPlayer.seat];
+    const ally = lastEntry && lastEntry.team.id === entry.team.id;
+    const lastLeft = lastEntry ? table.hands[lastEntry.seat].length : 99;
+
+    if (ally) {
+      if (lastLeft <= 4 && hand.length - table.lastCards.length > 4) return null;
+      const nonBomb = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
+      if (nonBomb.length > 0) candidates = nonBomb;
+      const best = bestScoredMove(candidates, hand, true, 0.2);
+      if (!best) return null;
+      if (best.cards.length === hand.length) return best;
+      const before = handStructure(hand);
+      const after = handStructure(cardsWithout(hand, best.cards));
+      return before.singles - after.singles >= 2 ? best : null;
+    }
+
+    if (lastLeft <= 2) {
+      const normal = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
+      const pool = normal.length > 0 ? normal : candidates;
+      pool.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+      return pool[0];
+    }
+
+    return bestScoredMove(candidates, hand, true, 0.25);
+  }
+
+  function simulateCandidate(table, seat, firstMove) {
+    const sim = cloneSimTable(table);
+    const team = table.seatPlayers[seat].team;
+    let winner = simApplyMove(sim, seat, firstMove);
+    if (winner) return winner.id === team.id;
+
+    let guard = 0;
+    while (guard++ < 160) {
+      const actor = sim.turnSeat;
+      const move = simChooseMove(sim, actor);
+      winner = simApplyMove(sim, actor, move);
+      if (winner) return winner.id === team.id;
+    }
+
+    return false;
+  }
+
+  function searchRealtimeMove(table, seat, moves) {
+    if (realtime.instant) return null;
+
+    const hand = table.hands[seat];
+    const lastPlay = table.lastPlay;
+    let options = [];
+    const legal = lastPlay ? moves.filter((move) => beats(lastPlay, move)) : moves;
+
+    const scored = legal.map((move) => ({
+      move,
+      score: lastPlay ? followMoveScore(move, hand) : leadMoveScore(move, hand)
+    }));
+    scored.sort((a, b) => a.score - b.score);
+    options = scored.slice(0, 3).map((entry) => entry.move);
+
+    const finish = legal.find((move) => move.cards.length === hand.length);
+    if (finish && !options.includes(finish)) options.unshift(finish);
+
+    if (lastPlay) options.push(null);
+    if (options.length === 0) return null;
+
+    let bestMove = options[0];
+    let bestWins = -1;
+    const rollouts = 3;
+
+    options.forEach((move) => {
+      let wins = 0;
+      for (let i = 0; i < rollouts; i++) {
+        if (simulateCandidate(table, seat, move)) wins++;
+      }
+      if (wins > bestWins) {
+        bestWins = wins;
+        bestMove = move;
+      }
+    });
+
+    return bestMove;
+  }
+
   function makeBoardHands() {
     const seats = ['E', 'S', 'W', 'N'];
     const hands = {};
@@ -2101,7 +2267,15 @@
     const entry = table.seatPlayers[seat];
     const hand = table.hands[seat];
     const moves = generateMoves(hand);
-    const move = chooseRealtimeMove(table, seat, hand, moves);
+    let move;
+    if (entry.player.strength >= 72 && !realtime.instant) {
+      move = searchRealtimeMove(table, seat, moves);
+      if (move === null && !table.lastPlay) {
+        move = chooseRealtimeMove(table, seat, hand, moves);
+      }
+    } else {
+      move = chooseRealtimeMove(table, seat, hand, moves);
+    }
 
     if (!move) {
       if (!table.lastPlay) {
