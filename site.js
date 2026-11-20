@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.21';
+  const VERSION = 'v1.0.22';
 
   const RELEASES = [
+    {
+      version: 'v1.0.22',
+      date: '2026-11-20',
+      items: [
+        '整届比赛结束汇总新增 24 支队伍的最终排名，标注冠军、亚军、季军、殿军、八强、十六强及第一赛段淘汰。'
+      ]
+    },
     {
       version: 'v1.0.21',
       date: '2026-11-20',

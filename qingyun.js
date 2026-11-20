@@ -1293,7 +1293,80 @@
     season.currentMatch = match || null;
   }
 
+  function assignTeamRank(team, rank) {
+    if (team) season.teamRankings.set(team.id, rank);
+  }
+
+  function rankEliminatedTeams(startRank) {
+    const eliminated = season.stageTeams
+      .filter((team) => season.eliminated.has(team.id))
+      .sort((a, b) => compareMetrics(metricFor(a), metricFor(b)));
+    eliminated.forEach((team, index) => assignTeamRank(team, startRank + index));
+  }
+
+  function recordStageRankings() {
+    const idx = season.stageIdx;
+
+    if (idx === 0) {
+      rankEliminatedTeams(17);
+    } else if (idx === 1) {
+      rankEliminatedTeams(9);
+    } else if (idx === 2) {
+      const bracket = season.bracket || {};
+      assignTeamRank(bracket.cBingLoser, 8);
+      assignTeamRank(bracket.dLoser, 7);
+      assignTeamRank(bracket.fXinLoser, 6);
+      assignTeamRank(bracket.gLoser, 5);
+    } else if (idx === 3) {
+      const bracket = season.bracket || {};
+      assignTeamRank(bracket.fourThreeLoser, 4);
+      assignTeamRank(bracket.loserFinalLoser, 3);
+    } else if (idx === 4) {
+      assignTeamRank(season.champion, 1);
+      assignTeamRank(season.runnerUp, 2);
+    }
+  }
+
+  function rankingLabel(rank) {
+    if (!rank) return '—';
+    if (rank === 1) return '冠军';
+    if (rank === 2) return '亚军';
+    if (rank === 3) return '季军';
+    if (rank === 4) return '殿军';
+    if (rank <= 8) return '八强';
+    if (rank <= 16) return '十六强';
+    return '第一赛段淘汰';
+  }
+
+  function teamRankingsTable() {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['最终名次', '战队', '最终成绩'].forEach((label) => headRow.append(headerCell(label)));
+    head.append(headRow);
+
+    const body = document.createElement('tbody');
+    teams
+      .map((team) => ({ team, rank: season.teamRankings.get(team.id) }))
+      .sort((a, b) => (a.rank || 999) - (b.rank || 999) || a.team.name.localeCompare(b.team.name))
+      .forEach(({ team, rank }) => {
+        const row = document.createElement('tr');
+        row.append(
+          tableCell(rank ? `第 ${rank} 名` : '—', 'qy-strong'),
+          tableCell(team.name),
+          tableCell(rankingLabel(rank), rank && rank <= 4 ? 'qy-win' : '')
+        );
+        body.append(row);
+      });
+
+    table.append(head, body);
+    return table;
+  }
+
   function finishStage() {
+    recordStageRankings();
     season.stageEnded = true;
     season.currentMatch = null;
 
@@ -1561,6 +1634,7 @@
       qualifiers: [],
       finalists: [],
       stageTeams: [],
+      teamRankings: new Map(),
       stageEnded: false,
       finished: false,
       currentMatch: null,
@@ -2149,6 +2223,13 @@
     note.className = 'modal-summary-note';
     const count = [...lastSummary.stats.values()].filter((stat) => stat.games > 0).length;
     note.textContent = `共 ${count} 名选手出场 · 按净胜分排序`;
+
+    if (lastSummary.kind === 'overall') {
+      const teamTitle = document.createElement('h4');
+      teamTitle.className = 'qy-stats-title';
+      teamTitle.textContent = '队伍最终排名';
+      summaryBody.append(teamTitle, wrapTable(teamRankingsTable()));
+    }
 
     summaryBody.append(note, wrapTable(statsTable(lastSummary.stats)));
 
