@@ -2236,6 +2236,12 @@ body.modal-open {
   transform: translateX(-50%);
 }
 
+.rt-player-badge.is-style {
+  color: #dce8ff;
+  background: linear-gradient(180deg, rgba(80, 115, 205, 0.95), rgba(32, 55, 120, 0.95));
+  border: 1px solid rgba(180, 205, 255, 0.35);
+}
+
 .rt-avatar {
   display: flex;
   align-items: center;
@@ -2430,6 +2436,16 @@ body.modal-open {
   color: #dbe5ff;
 }
 
+.rt-reason {
+  margin: 0;
+  padding: 3px 10px;
+  font-size: 11px;
+  color: #ffe6a1;
+  background: rgba(245, 197, 66, 0.12);
+  border: 1px solid rgba(245, 197, 66, 0.25);
+  border-radius: 999px;
+}
+
 .rt-board-score {
   margin: 0;
   font-size: 11px;
@@ -2460,6 +2476,46 @@ body.modal-open {
 }
 
 .rt-result .qy-result-sub {
+  color: #a9b8df;
+}
+
+.rt-review {
+  margin: 10px 0;
+  padding: 8px 10px;
+  color: #eef3ff;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.rt-review summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ffe6a1;
+}
+
+.rt-review-body {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  max-height: 180px;
+  margin-top: 8px;
+  overflow: auto;
+}
+
+.rt-review-board {
+  min-width: 0;
+}
+
+.rt-review-board strong {
+  font-size: 11px;
+  color: #dbe5ff;
+}
+
+.rt-review-board p {
+  margin: 3px 0;
+  font-size: 10px;
   color: #a9b8df;
 }
 
@@ -2588,6 +2644,10 @@ body.modal-open {
 
   .rt-controls .btn {
     flex: 1;
+  }
+
+  .rt-review-body {
+    grid-template-columns: 1fr;
   }
 
   .modal-foot {

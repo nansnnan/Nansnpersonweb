@@ -472,27 +472,60 @@
     return power;
   }
 
-  function chooseBid(entry, hand, highestBid, bidIndex) {
+  function chooseBid(entry, hand, highestBid, bidIndex, reason) {
     const highCards = hand.filter((card) => card === '2' || card === 'X' || card === 'D').length;
+    const structure = handStructure(hand);
+    const moves = estimateMoves(hand);
     const desire = handPower(hand) +
       (entry.player.strength - 70) * 0.35 +
       (Math.random() - 0.5) * 6 +
-      highCards * 2;
+      highCards * 2 -
+      Math.max(0, moves - 8) * 0.5 +
+      structure.bombs * 1.5;
 
     let bid = 0;
     if (desire >= 14) bid = 3;
     else if (desire >= 8) bid = 2;
     else if (desire >= 2) bid = 1;
 
-    if (highCards >= 4) bid = 3;
-
-    if (bidIndex === 1) {
-      if (highestBid === 2 && desire >= 8) bid = 3;
-      else if (desire >= 6) bid = Math.max(bid, 2);
-      if (desire >= 11 && highestBid < 3) bid = 3;
+    let note = '';
+    if (highCards >= 4) {
+      bid = 3;
+      note = '大牌齐全';
+    } else if (desire >= 14) {
+      note = '牌力强势';
+    } else if (moves <= 6) {
+      note = '牌型整齐';
+    } else if (structure.bombs > 0) {
+      note = '炸弹坐镇';
+    } else if (desire >= 8) {
+      note = '牌力不错';
+    } else if (desire >= 2) {
+      note = '试探叫分';
+    } else {
+      note = '牌散不叫';
     }
 
-    if (bid <= highestBid) bid = 0;
+    if (bidIndex === 1) {
+      if (highestBid === 2 && desire >= 8) {
+        bid = 3;
+        note = '第二家压制';
+      } else if (desire >= 6) {
+        bid = Math.max(bid, 2);
+        if (bid > 0) note = '第二家跟叫';
+      }
+      if (desire >= 11 && highestBid < 3) {
+        bid = 3;
+        note = '第二家反超';
+      }
+    }
+
+    if (bid <= highestBid) {
+      bid = 0;
+      note = highestBid > 0 ? '跟价不划算' : note;
+    }
+
+    if (reason) reason.text = bid > 0 ? `${note}，叫 ${bid} 分` : note;
     return bid;
   }
 
@@ -511,6 +544,20 @@
       counts[card] = (counts[card] || 0) + 1;
     });
 
+    const rankRuns = (minCount, minLength) => {
+      let runs = 0;
+      let length = 0;
+      RANKS.slice(0, -1).forEach((rank) => {
+        if ((counts[rank] || 0) >= minCount) length++;
+        else {
+          if (length >= minLength) runs++;
+          length = 0;
+        }
+      });
+      if (length >= minLength) runs++;
+      return runs;
+    };
+
     let singles = 0;
     let pairs = 0;
     let bombs = 0;
@@ -521,7 +568,14 @@
     });
     if (counts.X && counts.D) bombs++;
 
-    return { singles, pairs, bombs };
+    return {
+      singles,
+      pairs,
+      bombs,
+      sequences: rankRuns(1, 5),
+      pairRuns: rankRuns(2, 3),
+      planeRuns: rankRuns(3, 2)
+    };
   }
 
   function moveTopValue(move) {
@@ -615,6 +669,13 @@
     return moves;
   }
 
+  function structureBreakCost(before, after) {
+    let cost = Math.max(0, before.sequences - after.sequences) * 12;
+    cost += Math.max(0, before.pairRuns - after.pairRuns) * 8;
+    cost += Math.max(0, before.planeRuns - after.planeRuns) * 15;
+    return cost;
+  }
+
   function leadMoveScore(move, hand) {
     const remain = cardsWithout(hand, move.cards);
     const before = handStructure(hand);
@@ -645,6 +706,7 @@
     if ((move.type === 'single' || move.type === 'pair') && moveTopValue(move) >= 14 && hand.length > 1) {
       score += 10;
     }
+    score += structureBreakCost(before, after);
     score -= move.cards.length * 1.2;
     if (remain.length === 0) score -= 1000;
     return score;
@@ -662,6 +724,7 @@
     score += (before.bombs - after.bombs) * 30;
     score += bomb ? 50 : 0;
     score += moveTopValue(move) * 0.7;
+    score += structureBreakCost(before, after);
     score -= move.cards.length;
     if (remain.length === 0) score -= 1000;
     return score;
@@ -684,7 +747,7 @@
     return new Set(cards).size;
   }
 
-  function selectMoveByRules(table, seat, hand, moves, nextSeat) {
+  function selectMoveByRules(table, seat, hand, moves, nextSeat, reason) {
     const entry = table.seatPlayers[seat];
 
     if (!table.lastPlay) {
@@ -698,15 +761,18 @@
           const singles = leadMoves.filter((move) => move.type === 'single');
           if (singles.length > 0) {
             singles.sort((a, b) => moveTopValue(a) - moveTopValue(b));
+            if (reason) reason.text = '下家队友报单，送小单';
             return singles[0];
           }
         } else {
           const nonSingles = leadMoves.filter((move) => move.type !== 'single');
           if (nonSingles.length > 0) {
             leadMoves = nonSingles;
+            if (reason) reason.text = '下家对手报单，封住单张';
           } else {
             const singles = leadMoves.filter((move) => move.type === 'single');
             singles.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+            if (reason) reason.text = '只能出单，顶大牌';
             return singles[0];
           }
         }
@@ -721,58 +787,107 @@
 
       if (danger) {
         const bombs = leadMoves.filter((move) => move.type === 'bomb' || move.type === 'rocket');
-        if (bombs.length > 0) return bombs[0];
+        if (bombs.length > 0) {
+          if (reason) reason.text = '对手报双，炸弹控场';
+          return bombs[0];
+        }
         const singles = leadMoves.filter((move) => move.type === 'single');
         if (singles.length > 0) {
           singles.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+          if (reason) reason.text = '对手报双，顶住牌权';
           return singles[0];
         }
       }
 
+      const finish = moves.find((move) => move.cards.length === hand.length);
+      if (finish) {
+        if (reason) reason.text = '一手走完';
+        return finish;
+      }
+
+      if (reason && !reason.text) {
+        reason.text = hand.length <= 6 ? '残局整理手数' : '弱牌开路';
+      }
       return pickBestMove(leadMoves, hand, entry.player.strength, false);
     }
 
     let candidates = moves.filter((move) => beats(table.lastPlay, move));
-    if (candidates.length === 0) return null;
-    if (!table.lastPlayer) return pickBestMove(candidates, hand, entry.player.strength, true);
+    if (candidates.length === 0) {
+      if (reason) reason.text = '管不上，保留牌力';
+      return null;
+    }
+    if (!table.lastPlayer) {
+      if (reason) reason.text = '正常跟牌';
+      return pickBestMove(candidates, hand, entry.player.strength, true);
+    }
 
     const lastEntry = table.seatPlayers[table.lastPlayer.seat];
     const ally = lastEntry && lastEntry.team.id === entry.team.id;
     const lastLeft = lastEntry ? (table.hands[lastEntry.seat] || []).length : 99;
 
     if (ally) {
-      if (lastLeft <= 4 && hand.length - table.lastCards.length > 4) return null;
+      if (lastLeft <= 4 && hand.length - table.lastCards.length > 4) {
+        if (reason) reason.text = '队友快走，主动让牌';
+        return null;
+      }
 
       const finish = candidates.find((move) => move.cards.length === hand.length);
-      if (finish) return finish;
+      if (finish) {
+        if (reason) reason.text = '接队友牌，一手走完';
+        return finish;
+      }
 
       const nonBomb = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
-      if (nonBomb.length === 0) return null;
+      if (nonBomb.length === 0) {
+        if (reason) reason.text = '不用炸弹压队友';
+        return null;
+      }
 
       const best = pickBestMove(nonBomb, hand, entry.player.strength, true);
-      if (!best) return null;
+      if (!best) {
+        if (reason) reason.text = '不抢队友牌权';
+        return null;
+      }
 
       const groups = handGroupCount(hand);
-      if (groups <= 2) return best;
+      if (groups <= 2) {
+        if (reason) reason.text = '整理最后一手';
+        return best;
+      }
 
       const before = handStructure(hand);
       const after = handStructure(cardsWithout(hand, best.cards));
       const improved = before.singles - after.singles;
-      if (moveTopValue(best) <= 14 && improved >= 1) return best;
+      if (moveTopValue(best) <= 14 && improved >= 1) {
+        if (reason) reason.text = '顺队友牌整理手牌';
+        return best;
+      }
 
       const weakFumble = entry.player.strength < 65 && Math.random() < 0.16;
+      if (reason) reason.text = weakFumble ? '试探跟牌' : '不抢队友牌权';
       return weakFumble ? best : null;
     }
 
-    if (table.lastPlay.type === 'rocket') return null;
+    if (table.lastPlay.type === 'rocket') {
+      if (reason) reason.text = '王炸不管';
+      return null;
+    }
+
+    const finish = candidates.find((move) => move.cards.length === hand.length);
+    if (finish) {
+      if (reason) reason.text = '一手走完';
+      return finish;
+    }
 
     const normal = candidates.filter((move) => move.type !== 'bomb' && move.type !== 'rocket');
 
     if (normal.length > 0) {
       if (lastLeft <= 3) {
         normal.sort((a, b) => moveTopValue(b) - moveTopValue(a));
+        if (reason) reason.text = '对手临门，顶大牌';
         return normal[0];
       }
+      if (reason) reason.text = '压住敌方牌权';
       return pickBestMove(normal, hand, entry.player.strength, true);
     }
 
@@ -784,14 +899,18 @@
       table.lastPlay.type === 'bomb' ||
       table.lastPlay.type === 'rocket';
 
-    if (!allowBomb) return null;
+    if (!allowBomb) {
+      if (reason) reason.text = '炸弹留到关键手';
+      return null;
+    }
 
     const bombs = [...candidates].sort((a, b) => moveTopValue(a) - moveTopValue(b));
+    if (reason) reason.text = '关键手用炸弹抢牌权';
     return bombs[0] || null;
   }
 
-  function chooseRealtimeMove(table, seat, hand, moves) {
-    return selectMoveByRules(table, seat, hand, moves, rtNextSeat);
+  function chooseRealtimeMove(table, seat, hand, moves, reason) {
+    return selectMoveByRules(table, seat, hand, moves, rtNextSeat, reason);
   }
 
   function bestScoredMove(candidates, hand, follow, randomness = 0) {
@@ -889,7 +1008,7 @@
     return false;
   }
 
-  function searchRealtimeMove(table, seat, moves) {
+  function searchRealtimeMove(table, seat, moves, reason) {
     if (realtime.instant) return null;
 
     const hand = table.hands[seat];
@@ -924,6 +1043,12 @@
         bestMove = move;
       }
     });
+
+    if (reason) {
+      if (!bestMove) reason.text = '推演后选择不出，保留牌权';
+      else if (bestMove.cards.length === hand.length) reason.text = '一手走完';
+      else reason.text = '推演后选择胜率更高的牌';
+    }
 
     return bestMove;
   }
@@ -2352,6 +2477,8 @@
       table.farmerPlayed = false;
       table.result = null;
       table.log = [];
+      table.explain = [];
+      table.playedRanks = {};
       table.decisionMs = {};
       table.activeOrder.forEach((seat) => {
         table.decisionMs[seat] = 800 + Math.random() * 2400;
@@ -2368,8 +2495,15 @@
 
     const seat = table.bidOrder[table.bidCursor];
     const entry = table.seatPlayers[seat];
-    const bid = chooseBid(entry, table.hands[seat], table.highestBid, table.bidCursor);
+    const reason = realtime.instant || sync ? null : { text: '' };
+    const bid = chooseBid(entry, table.hands[seat], table.highestBid, table.bidCursor, reason);
     table.bids[seat] = bid;
+    if (reason) {
+      table.lastReason = { seat, player: entry.player.name, text: reason.text, turn: '叫分' };
+      table.explain.push({ ...table.lastReason });
+    } else {
+      table.lastReason = null;
+    }
 
     if (bid > table.highestBid) {
       table.highestBid = bid;
@@ -2470,11 +2604,14 @@
 
   function rtApplyMove(table, entry, hand, move) {
     rtRemoveCards(hand, move.cards);
+    move.cards.forEach((card) => {
+      table.playedRanks[card] = (table.playedRanks[card] || 0) + 1;
+    });
     if (move.type === 'bomb' || move.type === 'rocket') table.bombs++;
     if (entry.seat !== table.landlordSeat) table.farmerPlayed = true;
 
     table.lastPlay = move;
-    table.lastCards = move.cards;
+    table.lastCards = [...move.cards];
     table.lastPlayer = { seat: entry.seat, team: entry.team };
     table.passCount = 0;
 
@@ -2487,15 +2624,36 @@
     const seat = table.turnSeat;
     const entry = table.seatPlayers[seat];
     const hand = table.hands[seat];
+    const reason = realtime.instant || sync ? null : { text: '' };
+    let bottomRanks = [];
+    let unseenBig = [];
+    if (reason) {
+      const playedRanks = table.playedRanks || {};
+      const ownRanks = new Set(hand);
+      bottomRanks = table.bottom.filter((card) => (playedRanks[card] || 0) === 0 && !ownRanks.has(card));
+      unseenBig = ['2', 'X', 'D'].filter((card) => (playedRanks[card] || 0) === 0 && !ownRanks.has(card));
+    }
     const moves = generateMoves(hand);
     let move;
     if (entry.player.strength >= 72 && !realtime.instant) {
-      move = searchRealtimeMove(table, seat, moves);
+      move = searchRealtimeMove(table, seat, moves, reason);
       if (move === null && !table.lastPlay) {
-        move = chooseRealtimeMove(table, seat, hand, moves);
+        reason.text = '';
+        move = chooseRealtimeMove(table, seat, hand, moves, reason);
       }
     } else {
-      move = chooseRealtimeMove(table, seat, hand, moves);
+      move = chooseRealtimeMove(table, seat, hand, moves, reason);
+    }
+    if (reason && !reason.text) {
+      if (bottomRanks.length > 0) reason.text = '留意未出的底牌';
+      else if (unseenBig.length === 0) reason.text = '大牌已现，放心控场';
+      else reason.text = table.lastPlay ? '正常跟牌' : '弱牌开路';
+    }
+    if (reason) {
+      table.lastReason = { seat, player: entry.player.name, text: reason.text, turn: '出牌' };
+      table.explain.push({ ...table.lastReason });
+    } else {
+      table.lastReason = null;
     }
 
     if (!move) {
@@ -2583,7 +2741,8 @@
       winnerTeam,
       points,
       signedA: winnerTeam.id === table.match.teamA.id ? points : -points,
-      players
+      players,
+      explain: table.explain.slice()
     };
 
     rtLogLine(table, `${table.seatPlayers[winnerSeat].player.name} 出完，${winnerTeam.name} 得 ${points} 分`);
@@ -2833,6 +2992,12 @@
     return ranks;
   }
 
+  const RT_STYLES = ['稳健型', '控制型', '博弈型', '激进型'];
+
+  function rtStyleBadge(player) {
+    return RT_STYLES[hash(`${player.account || player.name}:style`) % RT_STYLES.length];
+  }
+
   function rtAvatarWrap(entry, table, match, badge) {
     const wrap = document.createElement('div');
     wrap.className = 'rt-avatar-wrap';
@@ -2841,6 +3006,7 @@
       const badgeEl = document.createElement('span');
       badgeEl.className = 'rt-player-badge';
       badgeEl.textContent = badge;
+      if (badge === '稳健型' || badge === '控制型' || badge === '博弈型' || badge === '激进型') badgeEl.classList.add('is-style');
       wrap.append(badgeEl);
     }
 
@@ -2905,7 +3071,7 @@
       players.append(rtPlayerRow(entry, table, match, {
         hand: table.hands[seat],
         goldRanks: bombRanks(table.hands[seat]),
-        badge
+        badge: badge || rtStyleBadge(entry.player)
       }));
     });
 
@@ -2926,7 +3092,8 @@
     top.className = 'rt-play-top';
     farmers.forEach((entry) => {
       top.append(rtPlayerRow(entry, table, match, {
-        hand: table.hands[entry.seat]
+        hand: table.hands[entry.seat],
+        badge: rtStyleBadge(entry.player)
       }));
     });
 
@@ -2952,6 +3119,15 @@
     if (table.result) status.textContent = '本桌已结束，等待另一桌…';
     else if (table.turnSeat) status.textContent = `轮到：${table.seatPlayers[table.turnSeat].player.name}`;
     center.append(status);
+
+    const reason = document.createElement('p');
+    reason.className = 'rt-reason';
+    if (table.lastReason) {
+      reason.textContent = `${table.lastReason.turn}：${table.lastReason.text}`;
+    } else {
+      reason.textContent = table.lastPlay ? '牌权进行中' : '自由出牌';
+    }
+    center.append(reason);
 
     if (realtime.boards.length > 0) {
       const previous = realtime.boards[realtime.boards.length - 1];
@@ -3036,7 +3212,12 @@
       rtTableView.append(rtPlayingView(table, match));
     }
 
-    rtLog.textContent = table.log.slice(-5).join('\n');
+    const recent = table.log.slice(-5);
+    if (table.lastReason && realtime && !realtime.instant) {
+      const reasonLine = `战术：${table.lastReason.player} ${table.lastReason.text}`;
+      if (!recent.includes(reasonLine)) recent.push(reasonLine);
+    }
+    rtLog.textContent = recent.join('\n');
 
     if (realtime.finished) showRealtimeResult();
     else rtResult.hidden = true;
@@ -3096,7 +3277,36 @@
       actions.append(finish);
     }
 
-    rtResult.append(title, sub, actions);
+    rtResult.append(title, sub);
+
+    const review = document.createElement('details');
+    review.className = 'rt-review';
+    const summary = document.createElement('summary');
+    summary.textContent = '查看关键决策';
+    review.append(summary);
+
+    const reviewBody = document.createElement('div');
+    reviewBody.className = 'rt-review-body';
+    realtime.boards.forEach((board) => {
+      [board.table1, board.table2].forEach((result) => {
+        const list = (result.explain || []).filter((item) => item.turn === '出牌').slice(-10);
+        if (list.length === 0) return;
+        const block = document.createElement('div');
+        block.className = 'rt-review-board';
+        const heading = document.createElement('strong');
+        heading.textContent = `第 ${board.index + 1} 副 · ${result.table} 桌`;
+        block.append(heading);
+        list.forEach((item) => {
+          const line = document.createElement('p');
+          line.textContent = `${item.player}：${item.text}`;
+          block.append(line);
+        });
+        reviewBody.append(block);
+      });
+    });
+    if (reviewBody.children.length > 0) review.append(reviewBody);
+    else review.hidden = true;
+    rtResult.append(review, actions);
   }
 
   function rtSwitchTable(index) {
