@@ -616,6 +616,17 @@ body.modal-open {
   max-width: 760px;
 }
 
+.tool-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.tool-links .back-link {
+  margin-bottom: 0;
+}
+
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -1437,6 +1448,113 @@ body.modal-open {
   gap: 14px;
 }
 
+.qy-season-bar {
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+.qy-season-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.qy-season-kicker {
+  margin: 0;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+}
+
+.qy-season-title {
+  margin: 2px 0 0;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.qy-season-events {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qy-season-event {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 8px 9px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.qy-season-event-name {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.qy-season-event-state {
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+  overflow-wrap: anywhere;
+}
+
+.qy-season-event.is-current {
+  border-color: var(--brand);
+  box-shadow: inset 0 0 0 1px var(--brand);
+}
+
+.qy-season-event.is-current .qy-season-event-state,
+.qy-season-event.is-done .qy-season-event-state {
+  color: var(--brand);
+}
+
+.qy-season-event.is-done {
+  background: var(--brand-soft);
+  border-color: transparent;
+}
+
+.qy-season-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.qy-season-details {
+  padding: 10px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.qy-season-details + .qy-season-details {
+  margin-top: 8px;
+}
+
+.qy-season-details > summary {
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qy-season-details[open] > summary {
+  margin-bottom: 10px;
+}
+
+.modal-body.is-season-summary .qy-stats-title:not(:first-child) {
+  margin-top: 18px;
+}
+
 .qy-status {
   display: flex;
   align-items: flex-start;
@@ -1459,6 +1577,10 @@ body.modal-open {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+}
+
+.qy-sandbox-bar[hidden] {
+  display: none;
 }
 
 .qy-sandbox-bar {
@@ -2563,6 +2685,14 @@ body.modal-open {
   .study-card {
     width: 30px;
     height: 42px;
+  }
+
+  .qy-season-events {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .qy-season-event:last-child {
+    grid-column: 1 / -1;
   }
 
   .qy-match {

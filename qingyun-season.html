@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>青云杯赛季模拟器 · 南山南的个人站</title>
+  <meta name="description" content="青云杯赛季模拟器：春夏秋冬与总决赛五届连赛，种子队随上届成绩递进">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="tool-hero">
+    <div class="container">
+      <div class="tool-links">
+        <a class="back-link" href="index.html">← 返回首页</a>
+        <a class="back-link" href="qingyun.html">单届模拟 →</a>
+      </div>
+      <h1 class="tool-title">青云杯赛季模拟器</h1>
+      <p class="tool-subtitle">春夏秋冬与总决赛 · 五届连赛 · 种子随成绩递进</p>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <section class="tool-panel qy-panel">
+      <section id="qy-season-bar" class="qy-season-bar">
+        <div class="qy-season-head">
+          <div>
+            <p class="qy-season-kicker">五届连赛</p>
+            <h2 class="qy-season-title">赛季进度</h2>
+          </div>
+          <button id="qy-season-summary" class="mini-btn" type="button" hidden>赛季汇总</button>
+        </div>
+        <ol id="qy-season-events" class="qy-season-events"></ol>
+        <p id="qy-season-seed-note" class="qy-season-note"></p>
+      </section>
+
+      <div class="qy-sandbox-bar" hidden>
+        <label class="switch">
+          <input id="qy-sandbox-toggle" class="switch-input" type="checkbox">
+          <span class="switch-track" aria-hidden="true"></span>
+          <span class="switch-text">沙盒模式</span>
+        </label>
+        <span id="qy-sandbox-status" class="qy-sandbox-status"></span>
+        <button id="qy-sandbox-edit" class="mini-btn" type="button" hidden>编辑名单</button>
+      </div>
+
+      <div class="qy-status">
+        <div>
+          <span id="qy-stage" class="qy-stage">准备中</span>
+          <p id="qy-round" class="qy-round-text"></p>
+        </div>
+        <div class="qy-status-actions">
+          <button id="qy-summary" class="mini-btn" type="button" hidden>汇总</button>
+          <button id="qy-restart" class="mini-btn" type="button">重新开始</button>
+        </div>
+      </div>
+
+      <div class="qy-match">
+        <div class="qy-team">
+          <span id="qy-team-a" class="qy-team-name">—</span>
+          <span id="qy-team-a-seed" class="qy-seed" hidden>种子</span>
+        </div>
+        <div class="qy-vs">
+          <span id="qy-format" class="qy-format">BO3</span>
+          <strong id="qy-score" class="qy-score">0 : 0</strong>
+        </div>
+        <div class="qy-team">
+          <span id="qy-team-b" class="qy-team-name">—</span>
+          <span id="qy-team-b-seed" class="qy-seed" hidden>种子</span>
+        </div>
+      </div>
+
+      <p id="qy-tip" class="study-tip" role="status"></p>
+
+      <div class="qy-realtime-row">
+        <button id="qy-realtime" class="btn" type="button">实时比赛模拟</button>
+      </div>
+
+      <section id="qy-sandbox-editor" class="qy-sandbox-editor" hidden>
+        <div class="qy-sb-head">
+          <div>
+            <h3 class="qy-sb-title">沙盒名单</h3>
+            <p id="qy-sb-summary" class="qy-sb-summary"></p>
+          </div>
+          <button id="qy-sb-add-team" class="mini-btn" type="button">新增战队</button>
+        </div>
+        <div id="qy-sb-teams" class="qy-sb-teams"></div>
+        <p id="qy-sb-tip" class="setup-tip" role="status"></p>
+        <div class="qy-sb-actions">
+          <button id="qy-sb-cancel" class="btn" type="button">取消</button>
+          <button id="qy-sb-apply" class="btn btn-primary" type="button">应用并重新开始</button>
+        </div>
+      </section>
+
+      <div class="qy-actions">
+        <button id="qy-single" class="btn btn-primary" type="button">模拟单局</button>
+        <button id="qy-whole" class="btn" type="button">模拟整场</button>
+        <button id="qy-next" class="btn" type="button">下一场</button>
+      </div>
+
+      <details class="qy-rounds">
+        <summary id="qy-round-summary">本轮对阵</summary>
+        <div id="qy-round-list" class="qy-round-list"></div>
+      </details>
+
+      <section class="qy-result">
+        <div id="qy-result-body">
+          <p class="qy-empty">选择「模拟单局」或「模拟整场」开始比赛。</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="site-version" data-site-version></span>
+        <button
+          class="changelog-trigger"
+          type="button"
+          data-dialog-open="changelog"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <div id="summary-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="summary-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="summary-title" class="modal-title">汇总</h2>
+        <button class="modal-close" type="button" aria-label="关闭汇总" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div id="summary-body" class="modal-body"></div>
+      <div class="modal-foot">
+        <button id="summary-action" class="btn btn-primary" type="button">继续</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="restart-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="restart-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="restart-title" class="modal-title">重新开始赛季</h2>
+        <button class="modal-close" type="button" aria-label="关闭" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <p class="modal-text">当前赛季的进度和统计数据会被清空，确定重新开始吗？</p>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" type="button" data-close>取消</button>
+        <button id="restart-confirm" class="btn btn-primary" type="button">重新开始</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="realtime-modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="rt-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel is-wide rt-panel" role="document">
+      <header class="modal-head">
+        <h2 id="rt-title" class="modal-title">实时比赛模拟</h2>
+        <button id="rt-close" class="modal-close" type="button" aria-label="退出实时模拟" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body">
+        <div class="rt-top">
+          <div class="rt-tabs">
+            <button class="rt-tab is-active" type="button" data-rt-table="0">A桌</button>
+            <button class="rt-tab" type="button" data-rt-table="1">B桌</button>
+          </div>
+          <span id="rt-score" class="rt-score"></span>
+        </div>
+        <div id="rt-notice" class="rt-notice" hidden></div>
+        <div id="rt-table-view" class="rt-table-view"></div>
+        <div class="rt-controls">
+          <button id="rt-fast-board" class="btn btn-small" type="button">快进当前副</button>
+          <button id="rt-fast-game" class="btn btn-small" type="button">快进当前局</button>
+        </div>
+        <div id="rt-log" class="rt-log" aria-live="polite"></div>
+        <div id="rt-result" class="rt-result" hidden></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="site.js"></script>
+  <script src="ddz-rules.js"></script>
+  <script src="qingyun-data.js"></script>
+  <script src="qingyun.js"></script>
+</body>
+</html>

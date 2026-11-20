@@ -13,6 +13,14 @@
   const ROUND_LABELS = ['第一轮', '第二轮', '第三轮', '第四轮', '第五轮'];
   const BOARDS_PER_GAME = [12, 16, 20, 20, 20];
   const DECIDING_BOARDS = 8;
+  const SEASON_EVENT_DEFS = [
+    { label: '春季赛' },
+    { label: '夏季赛' },
+    { label: '秋季赛' },
+    { label: '冬季赛' },
+    { label: '总决赛' }
+  ];
+  const SEASON_MODE = Boolean(document.getElementById('qy-season-bar'));
 
   function cloneTeamData(team, index) {
     return {
@@ -56,6 +64,9 @@
   const summaryTitle = document.getElementById('summary-title');
   const summaryBody = document.getElementById('summary-body');
   const summaryAction = document.getElementById('summary-action');
+  const seasonEventsEl = document.getElementById('qy-season-events');
+  const seasonSeedNote = document.getElementById('qy-season-seed-note');
+  const seasonSummaryBtn = document.getElementById('qy-season-summary');
   const restartModal = document.getElementById('restart-modal');
   const restartConfirm = document.getElementById('restart-confirm');
   const sandboxToggle = document.getElementById('qy-sandbox-toggle');
@@ -80,6 +91,7 @@
   const rtResult = document.getElementById('rt-result');
 
   let season = null;
+  let seasonCup = null;
   let lastResult = null;
   let lastSummary = null;
 
@@ -1497,7 +1509,31 @@
 
     if (season.stageIdx === 4) {
       season.finished = true;
+      if (SEASON_MODE) captureSeasonEvent();
       render();
+
+      if (SEASON_MODE) {
+        const event = seasonCup.events[seasonCup.currentIndex];
+        if (seasonCup.finished) {
+          tipEl.textContent = '总决赛结束，已生成本赛季成绩汇总。';
+          lastSummary = { kind: 'season', stats: seasonCup.totalStats, title: '青云杯 · 赛季成绩汇总' };
+          summaryBtn.textContent = '赛季汇总';
+          summaryBtn.hidden = false;
+          openSeasonSummary();
+        } else {
+          tipEl.textContent = `${event.label}结束，可查看汇总并进入下一届。`;
+          lastSummary = {
+            kind: 'overall',
+            stats: season.totalStats,
+            title: `${event.label} · 选手数据汇总`
+          };
+          summaryBtn.textContent = '本届汇总';
+          summaryBtn.hidden = false;
+          openSummary();
+        }
+        return;
+      }
+
       tipEl.textContent = '本届比赛结束，可查看本届汇总或重新开始赛季。';
       lastSummary = {
         kind: 'overall',
@@ -1768,6 +1804,318 @@
     lastResult = null;
     lastSummary = null;
     startStage(0);
+  }
+
+  function officialSeedNames() {
+    return DATA.teams.filter((team) => team.seed).map((team) => team.name);
+  }
+
+  function eventSeedSource(index) {
+    if (index === 0) return '官方名单规定的 8 支种子队';
+    if (index === SEASON_EVENT_DEFS.length - 1) {
+      return '春夏秋冬各届前二，重复时按该届名次顺延补齐';
+    }
+    return `${SEASON_EVENT_DEFS[index - 1].label}前八`;
+  }
+
+  function eventSeedNames(index) {
+    if (index === 0) return officialSeedNames();
+
+    if (index === SEASON_EVENT_DEFS.length - 1) {
+      const picked = [];
+      const seen = new Set();
+
+      seasonCup.events.slice(0, -1).forEach((event) => {
+        let taken = 0;
+        for (const entry of event.rankings) {
+          if (taken >= 2) break;
+          if (seen.has(entry.teamName)) continue;
+          seen.add(entry.teamName);
+          picked.push(entry.teamName);
+          taken++;
+        }
+      });
+
+      if (picked.length < 8) {
+        for (const event of seasonCup.events.slice(0, -1)) {
+          for (const entry of event.rankings) {
+            if (picked.length >= 8) break;
+            if (seen.has(entry.teamName)) continue;
+            seen.add(entry.teamName);
+            picked.push(entry.teamName);
+          }
+          if (picked.length >= 8) break;
+        }
+      }
+
+      return picked.slice(0, 8);
+    }
+
+    const previous = seasonCup.events[index - 1];
+    return previous.rankings.slice(0, 8).map((entry) => entry.teamName);
+  }
+
+  function applyEventSeeds(seedNames) {
+    const seeds = new Set(seedNames);
+    teams.forEach((team) => {
+      team.seed = seeds.has(team.name);
+    });
+  }
+
+  function eventRankingList() {
+    return teams
+      .map((team) => ({ teamName: team.name, rank: season.teamRankings.get(team.id) || 0 }))
+      .filter((entry) => entry.rank > 0)
+      .sort((a, b) => a.rank - b.rank);
+  }
+
+  function captureSeasonEvent() {
+    if (!SEASON_MODE || !seasonCup) return;
+
+    const event = seasonCup.events[seasonCup.currentIndex];
+    if (!event || event.completed) return;
+
+    event.rankings = eventRankingList();
+    event.champion = event.rankings[0]?.teamName || '';
+    event.runnerUp = event.rankings[1]?.teamName || '';
+    event.top4 = event.rankings.slice(0, 4).map((entry) => entry.teamName);
+    event.completed = true;
+    mergeStatsMap(seasonCup.totalStats, season.totalStats);
+    seasonCup.finished = seasonCup.currentIndex === SEASON_EVENT_DEFS.length - 1;
+  }
+
+  function startSeasonEvent(index) {
+    if (!SEASON_MODE || !seasonCup) return;
+
+    const event = seasonCup.events[index];
+    if (!event) return;
+
+    const seedNames = eventSeedNames(index);
+    if (seedNames.length !== 8) {
+      tipEl.textContent = `${event.label}种子队生成失败，请重新开始赛季。`;
+      return;
+    }
+
+    seasonCup.currentIndex = index;
+    event.seeds = seedNames;
+    event.seedSource = eventSeedSource(index);
+    applyEventSeeds(seedNames);
+    preserveStrengths = index > 0;
+    resetSeason();
+    tipEl.textContent = `${event.label}开始 · 种子：${seedNames.join('、')}。`;
+  }
+
+  function startSeasonCup() {
+    if (!SEASON_MODE) {
+      resetSeason();
+      return;
+    }
+
+    seasonCup = {
+      currentIndex: 0,
+      finished: false,
+      totalStats: createStatsMap(),
+      events: SEASON_EVENT_DEFS.map((def) => ({
+        ...def,
+        seeds: [],
+        seedSource: '',
+        rankings: [],
+        top4: [],
+        champion: '',
+        runnerUp: '',
+        completed: false
+      }))
+    };
+
+    startSeasonEvent(0);
+  }
+
+  function renderSeasonBar() {
+    if (!SEASON_MODE || !seasonCup || !seasonEventsEl) return;
+
+    seasonEventsEl.textContent = '';
+    SEASON_EVENT_DEFS.forEach((def, index) => {
+      const event = seasonCup.events[index];
+      const item = document.createElement('li');
+      item.className = 'qy-season-event';
+      if (event.completed) item.classList.add('is-done');
+      else if (!seasonCup.finished && index === seasonCup.currentIndex) item.classList.add('is-current');
+
+      const name = document.createElement('span');
+      name.className = 'qy-season-event-name';
+      name.textContent = def.label;
+
+      const state = document.createElement('span');
+      state.className = 'qy-season-event-state';
+      if (event.completed) state.textContent = `冠军：${event.champion}`;
+      else if (!seasonCup.finished && index === seasonCup.currentIndex) state.textContent = '进行中';
+      else state.textContent = '未开始';
+
+      item.append(name, state);
+      seasonEventsEl.append(item);
+    });
+
+    const current = seasonCup.events[seasonCup.currentIndex];
+    if (seasonSeedNote && current) {
+      seasonSeedNote.textContent = `本届种子（${current.seedSource}）：${current.seeds.join('、')}`;
+    }
+    if (seasonSummaryBtn) seasonSummaryBtn.hidden = !seasonCup.finished;
+    restartBtn.textContent = '重开赛季';
+  }
+
+  function seasonPlacementText(rank) {
+    return rank ? `第 ${rank} 名` : '—';
+  }
+
+  function eventResultsTable(event) {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['最终名次', '战队', '最终成绩'].forEach((label) => headRow.append(headerCell(label)));
+    head.append(headRow);
+
+    const body = document.createElement('tbody');
+    event.rankings.forEach((entry) => {
+      const row = document.createElement('tr');
+      row.append(
+        tableCell(`第 ${entry.rank} 名`, 'qy-strong'),
+        tableCell(entry.teamName),
+        tableCell(rankingLabel(entry.rank), entry.rank <= 4 ? 'qy-win' : '')
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function seasonEventsTable() {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['赛事', '冠军', '亚军', '季军 / 殿军', '种子来源'].forEach((label) => headRow.append(headerCell(label)));
+    head.append(headRow);
+
+    const body = document.createElement('tbody');
+    SEASON_EVENT_DEFS.forEach((def, index) => {
+      const event = seasonCup.events[index];
+      const row = document.createElement('tr');
+      row.append(
+        tableCell(def.label, 'qy-strong'),
+        tableCell(event.completed ? event.champion : '—', event.completed ? 'qy-win' : ''),
+        tableCell(event.completed ? event.runnerUp : '—'),
+        tableCell(event.completed ? event.top4.slice(2).join('、') : '—'),
+        tableCell(event.seedSource)
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function seasonTeamTable() {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['战队', ...SEASON_EVENT_DEFS.map((def) => def.label), '冠军', '前四', '最好名次'].forEach((label) => {
+      headRow.append(headerCell(label));
+    });
+    head.append(headRow);
+
+    const rows = teams.map((team) => {
+      const ranks = seasonCup.events.map((event) =>
+        event.rankings.find((entry) => entry.teamName === team.name)?.rank || 0
+      );
+      const playedRanks = ranks.filter((rank) => rank > 0);
+      return {
+        team,
+        ranks,
+        titles: ranks.filter((rank) => rank === 1).length,
+        top4: ranks.filter((rank) => rank > 0 && rank <= 4).length,
+        best: playedRanks.length ? Math.min(...playedRanks) : 999
+      };
+    });
+
+    rows.sort((a, b) => a.best - b.best || b.titles - a.titles || b.top4 - a.top4 || a.team.name.localeCompare(b.team.name));
+
+    const body = document.createElement('tbody');
+    rows.forEach(({ team, ranks, titles, top4, best }) => {
+      const row = document.createElement('tr');
+      row.append(tableCell(team.name, 'qy-strong'));
+      ranks.forEach((rank) => {
+        row.append(tableCell(seasonPlacementText(rank), rank > 0 && rank <= 4 ? 'qy-win' : ''));
+      });
+      row.append(
+        tableCell(String(titles)),
+        tableCell(String(top4)),
+        tableCell(best === 999 ? '—' : `第 ${best} 名`)
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function openSeasonSummary() {
+    if (!seasonCup) return;
+
+    summaryTitle.textContent = '青云杯 · 赛季成绩汇总';
+    summaryBody.classList.add('is-season-summary');
+    summaryBody.textContent = '';
+
+    const completedCount = seasonCup.events.filter((event) => event.completed).length;
+    const intro = document.createElement('p');
+    intro.className = 'modal-summary-note';
+    intro.textContent = `春夏秋冬与总决赛共 5 届 · ${teams.length} 支战队 · 已完成 ${completedCount} 届`;
+    summaryBody.append(intro);
+
+    const eventTitle = document.createElement('h4');
+    eventTitle.className = 'qy-stats-title';
+    eventTitle.textContent = '五届比赛结果';
+    summaryBody.append(eventTitle, wrapTable(seasonEventsTable()));
+
+    const teamTitle = document.createElement('h4');
+    teamTitle.className = 'qy-stats-title';
+    teamTitle.textContent = '战队赛季成绩';
+    summaryBody.append(teamTitle, wrapTable(seasonTeamTable()));
+
+    const playerCount = [...seasonCup.totalStats.values()].filter((stat) => stat.games > 0).length;
+    const playerTitle = document.createElement('h4');
+    playerTitle.className = 'qy-stats-title';
+    playerTitle.textContent = '五届累计选手数据';
+    const playerNote = document.createElement('p');
+    playerNote.className = 'modal-summary-note';
+    playerNote.textContent = `共 ${playerCount} 名选手出场 · 按净胜分排序`;
+    summaryBody.append(playerTitle, playerNote, wrapTable(statsTable(seasonCup.totalStats)));
+
+    const rankingsTitle = document.createElement('h4');
+    rankingsTitle.className = 'qy-stats-title';
+    rankingsTitle.textContent = '各届完整排名';
+    summaryBody.append(rankingsTitle);
+
+    SEASON_EVENT_DEFS.forEach((def, index) => {
+      const event = seasonCup.events[index];
+      if (!event.completed) return;
+
+      const details = document.createElement('details');
+      details.className = 'qy-season-details';
+      const summary = document.createElement('summary');
+      summary.textContent = `${def.label} · 完整排名`;
+      details.append(summary, wrapTable(eventResultsTable(event)));
+      summaryBody.append(details);
+    });
+
+    lastSummary = { kind: 'season', stats: seasonCup.totalStats, title: '青云杯 · 赛季成绩汇总' };
+    summaryAction.textContent = '重新开始赛季';
+    openModal(summaryModal);
   }
 
   function sandboxValidationMessage() {
@@ -2147,6 +2495,7 @@
     nextBtn.disabled = !match || !match.done || season.stageEnded || season.finished;
 
     summaryBtn.hidden = !lastSummary;
+    renderSeasonBar();
     renderRoundList();
     renderResult();
   }
@@ -2340,8 +2689,13 @@
 
   function openSummary() {
     if (!lastSummary) return;
+    if (lastSummary.kind === 'season') {
+      openSeasonSummary();
+      return;
+    }
 
     summaryTitle.textContent = lastSummary.title;
+    summaryBody.classList.remove('is-season-summary');
     summaryBody.textContent = '';
 
     const note = document.createElement('p');
@@ -2359,7 +2713,11 @@
     summaryBody.append(note, wrapTable(statsTable(lastSummary.stats)));
 
     if (lastSummary.kind === 'overall') {
-      summaryAction.textContent = '重新开始赛季';
+      if (SEASON_MODE && seasonCup && seasonCup.currentIndex < SEASON_EVENT_DEFS.length - 1) {
+        summaryAction.textContent = `进入${SEASON_EVENT_DEFS[seasonCup.currentIndex + 1].label}`;
+      } else {
+        summaryAction.textContent = '重新开始赛季';
+      }
     } else {
       summaryAction.textContent = season.stageIdx < 4 ? '进入下一赛段' : '继续';
     }
@@ -2371,7 +2729,20 @@
     closeModal(summaryModal);
     if (!lastSummary) return;
 
+    if (SEASON_MODE && lastSummary.kind === 'season') {
+      startSeasonCup();
+      return;
+    }
+
     if (lastSummary.kind === 'overall') {
+      if (SEASON_MODE && seasonCup && seasonCup.currentIndex < SEASON_EVENT_DEFS.length - 1) {
+        startSeasonEvent(seasonCup.currentIndex + 1);
+        return;
+      }
+      if (SEASON_MODE) {
+        startSeasonCup();
+        return;
+      }
       resetSeason();
       return;
     }
@@ -3366,7 +3737,11 @@
   summaryAction.addEventListener('click', handleSummaryAction);
 
   restartBtn.addEventListener('click', () => openModal(restartModal));
-  restartConfirm.addEventListener('click', resetSeason);
+  restartConfirm.addEventListener('click', () => {
+    if (SEASON_MODE) startSeasonCup();
+    else resetSeason();
+  });
+  seasonSummaryBtn?.addEventListener('click', openSeasonSummary);
 
   sandboxToggle.addEventListener('change', () => {
     if (sandboxToggle.checked) openSandboxEditor();
@@ -3388,5 +3763,6 @@
   });
 
   updateSandboxBar();
-  resetSeason();
+  if (SEASON_MODE) startSeasonCup();
+  else resetSeason();
 })();
