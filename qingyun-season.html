@@ -28,10 +28,17 @@
             <p class="qy-season-kicker">五届连赛</p>
             <h2 class="qy-season-title">赛季进度</h2>
           </div>
-          <button id="qy-season-summary" class="mini-btn" type="button" hidden>赛季汇总</button>
+          <div class="sh-clock-wrap">
+            <span class="sh-clock-label">当前日期与时间</span>
+            <strong id="qy-clock" class="sh-clock">—</strong>
+          </div>
         </div>
         <ol id="qy-season-events" class="qy-season-events"></ol>
         <p id="qy-season-seed-note" class="qy-season-note"></p>
+        <div class="sh-season-actions">
+          <button id="qy-advance" class="btn btn-small" type="button" hidden>推进到下一届</button>
+          <button id="qy-season-summary" class="mini-btn" type="button" hidden>赛季汇总</button>
+        </div>
       </section>
 
       <section class="qy-save-panel" aria-labelledby="qy-save-title">
@@ -114,6 +121,11 @@
         <button id="qy-sim-stage" class="btn" type="button">模拟赛段</button>
         <button id="qy-next" class="btn" type="button">下一场</button>
       </div>
+
+      <details id="qy-notices-details" class="qy-rounds sh-notices-details">
+        <summary>训练赛通知 <span id="qy-notice-summary" class="sh-notice-summary"></span></summary>
+        <div id="qy-notice-list" class="sh-notice-list" aria-live="polite"></div>
+      </details>
 
       <details class="qy-rounds">
         <summary id="qy-round-summary">本轮对阵</summary>
