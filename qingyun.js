@@ -1926,6 +1926,28 @@
     const end = shAddMinutes(start, shGameMinutes(game.plannedBoards));
     match.lastEndTime = end;
     if (!shanhaiCup.clock || end > shanhaiCup.clock) shanhaiCup.clock = end;
+    shSyncClockToNextScheduledTime(match);
+  }
+
+  function shSyncClockToNextScheduledTime(match) {
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup || !season.round) return;
+
+    const round = season.round;
+    const index = round.matches.indexOf(match);
+    if (index < 0) return;
+
+    let nextTime = null;
+    if (shanhai.phase === 'knockout') {
+      const nextMatch = round.matches[index + 1];
+      if (nextMatch && nextMatch.startTime) nextTime = nextMatch.startTime;
+    } else if (
+      index === round.matches.length - 1 &&
+      shanhai.roundIndex < shanhai.rounds.length - 1
+    ) {
+      nextTime = shanhai.rounds[shanhai.roundIndex + 1].time;
+    }
+
+    if (nextTime) shanhaiCup.clock = new Date(nextTime);
   }
 
   function shBlankGroupRecord(team) {
