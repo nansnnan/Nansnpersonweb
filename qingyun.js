@@ -3,6 +3,9 @@
 
   const SHANHAI_MODE = document.body.dataset.game === 'shanhai';
   const SHANHAI_SEASON_MODE = SHANHAI_MODE && document.body.dataset.season === 'true';
+  const ERA_MODE = document.body.dataset.era === 'true';
+  const ERA_START_YEAR = 2025;
+  const ERA_END_YEAR = 2050;
   const DATA = SHANHAI_MODE ? window.SHANHAI_DATA : window.QINGYUN_DATA;
   const { CARD_VALUE, RANKS, ALL_RANKS, getType, beats, sortCards } = window.DDZRules;
   const STAGE_NAMES = [
@@ -41,8 +44,8 @@
   const SEASON_MATCHES_PER_DAY = 4;
   const SEASON_MODE = Boolean(document.getElementById('qy-season-bar'));
   const SAVE_MODE = SHANHAI_SEASON_MODE
-    ? 'shanhai-season'
-    : (SEASON_MODE ? 'qingyun-season' : null);
+    ? (ERA_MODE ? 'shanhai-era' : 'shanhai-season')
+    : (SEASON_MODE ? (ERA_MODE ? 'qingyun-era' : 'qingyun-season') : null);
 
   function cloneTeamData(team, index) {
     return {
@@ -94,6 +97,9 @@
   const seasonAdvanceBtn = document.getElementById('qy-advance');
   const seasonNoticeListEl = document.getElementById('qy-notice-list');
   const seasonNoticeSummaryEl = document.getElementById('qy-notice-summary');
+  const eraYearsEl = document.getElementById('era-years');
+  const eraCurrentEl = document.getElementById('era-current');
+  const eraNoteEl = document.getElementById('era-note');
   const shanhaiGroupsEl = document.getElementById('sh-groups');
   const shanhaiGroupsDetailsEl = document.getElementById('sh-groups-details');
   const shanhaiSeasonEventsEl = document.getElementById('sh-season-events');
@@ -134,6 +140,7 @@
   let seasonCup = null;
   let shanhai = null;
   let shanhaiCup = null;
+  let era = null;
   let lastResult = null;
   let lastSummary = null;
   let bulkSimulating = false;
@@ -1602,6 +1609,7 @@
       season.finished = true;
       if (SEASON_MODE) {
         captureSeasonEvent();
+        if (ERA_MODE) recordEraYear();
         if (!seasonCup.finished) {
           seasonCup.idle = true;
           seasonCup.idleStart = new Date(seasonCup.clock);
@@ -1921,6 +1929,20 @@
     return new Date(parts[0], parts[1], parts[2], parts[3] || 0, parts[4] || 0, 0, 0);
   }
 
+  function shEventDate(index, year = null) {
+    const def = SHANHAI_EVENT_DEFS[index] || SHANHAI_EVENT_DEFS[0];
+    const targetYear = year ?? (ERA_MODE && era ? era.currentYear : 2026);
+    return new Date(
+      targetYear,
+      def.start[1],
+      def.start[2],
+      def.start[3] || 0,
+      def.start[4] || 0,
+      0,
+      0
+    );
+  }
+
   function shAddMinutes(date, minutes) {
     return new Date(date.getTime() + minutes * 60000);
   }
@@ -1995,13 +2017,22 @@
     if (nextTime) shanhaiCup.clock = new Date(nextTime);
   }
 
-  function qyEventDate(index) {
-    const def = SEASON_EVENT_DEFS[index];
-    return def?.start ? shDate(def.start) : shDate(SEASON_EVENT_DEFS[0].start);
+  function qyEventDate(index, year = null) {
+    const def = SEASON_EVENT_DEFS[index] || SEASON_EVENT_DEFS[0];
+    const targetYear = year ?? (ERA_MODE && era ? era.currentYear : 2026);
+    return new Date(
+      targetYear,
+      def.start[1],
+      def.start[2],
+      def.start[3] || 0,
+      def.start[4] || 0,
+      0,
+      0
+    );
   }
 
-  function qyNextEventStart(index) {
-    const fixed = qyEventDate(index);
+  function qyNextEventStart(index, year = null) {
+    const fixed = qyEventDate(index, year);
     if (!seasonCup?.clock) return fixed;
     const earliest = new Date(seasonCup.clock.getTime() + SEASON_MIN_REST_MS);
     return fixed > earliest ? fixed : earliest;
@@ -2641,6 +2672,7 @@
 
     if (SHANHAI_SEASON_MODE) {
       shCaptureSeasonEvent();
+      if (ERA_MODE) recordEraYear();
       const event = shanhaiCup.events[shanhaiCup.currentIndex];
       if (shanhaiCup.currentIndex === SHANHAI_EVENT_DEFS.length - 1) {
         shanhaiCup.finished = true;
@@ -2778,13 +2810,17 @@
   }
 
   function shAdvanceSeason() {
+    if (ERA_MODE && era?.tradeWindow) {
+      shAdvanceEraYear();
+      return;
+    }
     if (!SHANHAI_SEASON_MODE || !shanhaiCup || !shanhaiCup.idle || shanhaiCup.finished) return;
 
     const index = shanhaiCup.idleNext;
     const def = SHANHAI_EVENT_DEFS[index];
     if (!def) return;
 
-    const nextStart = shDate(def.start);
+    const nextStart = shEventDate(index);
     shProcessTrainingUntil(nextStart);
     shStartSeasonEvent(index);
   }
@@ -2936,7 +2972,9 @@
     });
 
     lastSummary = { kind: 'shanhai-season', stats: shanhaiCup.totalStats, title: '山海杯 · 赛季成绩汇总' };
-    summaryAction.textContent = '重新开始赛季';
+    summaryAction.textContent = ERA_MODE
+      ? (era?.finished ? '重新开始赛年' : '进入交易窗口')
+      : '重新开始赛季';
     openModal(summaryModal);
   }
 
@@ -3039,7 +3077,7 @@
     event.seeds = seedNames;
     event.seedSource = eventSeedSource(index);
     applyEventSeeds(seedNames);
-    preserveStrengths = index > 0;
+    preserveStrengths = ERA_MODE || index > 0;
     qyAddNotice(seasonCup.clock, `${event.label}开始，比赛于 ${shFormatDate(seasonCup.clock)} 进行。`);
     resetSeason();
     tipEl.textContent = `${event.label}开始 · 种子：${seedNames.join('、')}。`;
@@ -3076,6 +3114,10 @@
   }
 
   function qyAdvanceSeason() {
+    if (ERA_MODE && era?.tradeWindow) {
+      qyAdvanceEraYear();
+      return;
+    }
     if (!SEASON_MODE || !seasonCup || !seasonCup.idle || seasonCup.finished) return;
 
     const index = seasonCup.idleNext;
@@ -3084,6 +3126,280 @@
     startSeasonEvent(index, nextStart);
     renderSeasonBar();
     render();
+  }
+
+  function eraSeasonNo(year) {
+    return year - ERA_START_YEAR + 1;
+  }
+
+  function startEra() {
+    if (!ERA_MODE) return;
+
+    closeModal(summaryModal);
+    closeModal(restartModal);
+    officialTeams = cloneTeamList(DATA.teams);
+    teams = officialTeams;
+    preserveStrengths = false;
+    prepareTeams(teams, false);
+    era = {
+      startYear: ERA_START_YEAR,
+      endYear: ERA_END_YEAR,
+      currentYear: ERA_START_YEAR,
+      seasonNo: 1,
+      finished: false,
+      tradeWindow: false,
+      tradeStart: null,
+      nextYear: null,
+      history: [],
+      notifications: []
+    };
+
+    if (SHANHAI_MODE) startShanhaiEraYear(ERA_START_YEAR);
+    else startQingyunEraYear(ERA_START_YEAR);
+  }
+
+  function startQingyunEraYear(year) {
+    if (!ERA_MODE || !era) return;
+
+    era.currentYear = year;
+    era.seasonNo = eraSeasonNo(year);
+    const startTime = qyEventDate(0, year);
+    seasonCup = {
+      year,
+      seasonNo: era.seasonNo,
+      currentIndex: 0,
+      idle: false,
+      idleStart: null,
+      idleNext: null,
+      clock: new Date(startTime),
+      finished: false,
+      totalStats: createStatsMap(),
+      notifications: era.notifications,
+      events: SEASON_EVENT_DEFS.map((def) => ({
+        ...def,
+        seeds: [],
+        seedSource: '',
+        rankings: [],
+        top4: [],
+        champion: '',
+        runnerUp: '',
+        completed: false
+      }))
+    };
+    startSeasonEvent(0, startTime);
+    renderEraBar();
+    renderSeasonBar();
+    render();
+  }
+
+  function startShanhaiEraYear(year) {
+    if (!ERA_MODE || !era) return;
+
+    era.currentYear = year;
+    era.seasonNo = eraSeasonNo(year);
+    const startTime = shEventDate(0, year);
+    season = createSeasonState();
+    season.stageTeams = [...teams];
+    lastResult = null;
+    lastSummary = null;
+    shanhai = { phase: 'group1', groups: [], rounds: [], roundIndex: 0, tiebreakCount: 0 };
+    shanhaiCup = {
+      year,
+      seasonNo: era.seasonNo,
+      currentIndex: 0,
+      idle: false,
+      idleNext: null,
+      idleStart: null,
+      clock: new Date(startTime),
+      finished: false,
+      totalStats: createStatsMap(),
+      notifications: era.notifications,
+      events: SHANHAI_EVENT_DEFS.map((def) => ({
+        label: def.label,
+        rankings: [],
+        top4: [],
+        champion: '',
+        runnerUp: '',
+        completed: false
+      }))
+    };
+    shAddNotice(startTime, `${year} 年春季赛小组赛开始。`);
+    shStartGroupStage(0);
+    renderEraBar();
+    renderShanhaiSeasonBar();
+    render();
+  }
+
+  function recordEraYear() {
+    if (!ERA_MODE || !era) return;
+    const cup = SHANHAI_MODE ? shanhaiCup : seasonCup;
+    if (!cup || era.history.some((entry) => entry.year === era.currentYear)) return;
+
+    const finalEvent = cup.events[cup.events.length - 1];
+    if (!finalEvent?.completed) return;
+
+    era.history.push({
+      year: era.currentYear,
+      seasonNo: era.seasonNo,
+      champion: finalEvent.champion,
+      runnerUp: finalEvent.runnerUp,
+      top4: [...(finalEvent.top4 || [])],
+      events: cup.events.map((event) => ({
+        label: event.label,
+        champion: event.champion,
+        runnerUp: event.runnerUp,
+        top4: [...(event.top4 || [])]
+      }))
+    });
+
+    if (era.currentYear < era.endYear) {
+      era.tradeWindow = true;
+      era.tradeStart = new Date(cup.clock);
+      era.nextYear = era.currentYear + 1;
+    } else {
+      era.finished = true;
+      era.tradeWindow = false;
+      era.tradeStart = null;
+      era.nextYear = null;
+    }
+    renderEraBar();
+  }
+
+  function qyAdvanceEraYear() {
+    if (!ERA_MODE || !era || !era.tradeWindow || era.finished) return;
+
+    const nextYear = era.nextYear;
+    const nextStart = qyEventDate(0, nextYear);
+    const tradeStart = new Date(era.tradeStart || seasonCup.clock);
+    qyProcessTrainingUntil(nextStart);
+    qyRunTradeWindow(tradeStart, nextStart);
+    era.currentYear = nextYear;
+    era.seasonNo = eraSeasonNo(nextYear);
+    era.tradeWindow = false;
+    era.tradeStart = null;
+    era.nextYear = null;
+    startQingyunEraYear(nextYear);
+  }
+
+  function shAdvanceEraYear() {
+    if (!ERA_MODE || !era || !era.tradeWindow || era.finished) return;
+
+    const nextYear = era.nextYear;
+    const nextStart = shEventDate(0, nextYear);
+    const tradeStart = new Date(era.tradeStart || shanhaiCup.clock);
+    shProcessTrainingUntil(nextStart);
+    shRunTradeWindow(tradeStart, nextStart);
+    era.currentYear = nextYear;
+    era.seasonNo = eraSeasonNo(nextYear);
+    era.tradeWindow = false;
+    era.tradeStart = null;
+    era.nextYear = null;
+    startShanhaiEraYear(nextYear);
+  }
+
+  function qyRunTradeWindow(start, end) {
+    if (!ERA_MODE || !era || !teams?.length) return;
+
+    qyAddNotice(start, '赛年交易窗口开启，各队可进行成员调整。');
+    const count = 1 + randomInt(0, 2);
+    for (let i = 0; i < count; i++) {
+      let teamA = teams[randomInt(0, teams.length - 1)];
+      let teamB = teams[randomInt(0, teams.length - 1)];
+      if (teamA === teamB) {
+        teamB = teams[(teams.indexOf(teamA) + 1) % teams.length];
+      }
+      if (!teamA.players.length || !teamB.players.length) continue;
+
+      const playerA = teamA.players.splice(randomInt(0, teamA.players.length - 1), 1)[0];
+      const playerB = teamB.players.splice(randomInt(0, teamB.players.length - 1), 1)[0];
+      teamA.players.push(playerB);
+      teamB.players.push(playerA);
+
+      const tradeDate = new Date(end.getTime() - (1 + randomInt(0, 7)) * 86400000);
+      qyAddNotice(
+        tradeDate < start ? start : tradeDate,
+        `交易窗口 · ${teamA.name} 与 ${teamB.name} 交换成员：${teamA.name} 送出 ${playerA.name}，得到 ${playerB.name}；${teamB.name} 送出 ${playerB.name}，得到 ${playerA.name}。`
+      );
+    }
+    qyAddNotice(new Date(end.getTime() - 86400000), '交易窗口关闭，各队名单确定。');
+  }
+
+  function shRunTradeWindow(start, end) {
+    if (!ERA_MODE || !era || !teams?.length) return;
+
+    shAddNotice(start, '赛年交易窗口开启，各队可进行成员调整。');
+    const count = 1 + randomInt(0, 2);
+    for (let i = 0; i < count; i++) {
+      let teamA = teams[randomInt(0, teams.length - 1)];
+      let teamB = teams[randomInt(0, teams.length - 1)];
+      if (teamA === teamB) {
+        teamB = teams[(teams.indexOf(teamA) + 1) % teams.length];
+      }
+      if (!teamA.players.length || !teamB.players.length) continue;
+
+      const playerA = teamA.players.splice(randomInt(0, teamA.players.length - 1), 1)[0];
+      const playerB = teamB.players.splice(randomInt(0, teamB.players.length - 1), 1)[0];
+      teamA.players.push(playerB);
+      teamB.players.push(playerA);
+
+      const tradeDate = new Date(end.getTime() - (1 + randomInt(0, 7)) * 86400000);
+      shAddNotice(
+        tradeDate < start ? start : tradeDate,
+        `交易窗口 · ${teamA.name} 与 ${teamB.name} 交换成员：${teamA.name} 送出 ${playerA.name}，得到 ${playerB.name}；${teamB.name} 送出 ${playerB.name}，得到 ${playerA.name}。`
+      );
+    }
+    shAddNotice(new Date(end.getTime() - 86400000), '交易窗口关闭，各队名单确定。');
+  }
+
+  function renderEraBar() {
+    if (!ERA_MODE || !era) return;
+
+    if (eraYearsEl) {
+      eraYearsEl.textContent = '';
+      for (let year = ERA_START_YEAR; year <= ERA_END_YEAR; year++) {
+        const entry = era.history.find((item) => item.year === year);
+        const item = document.createElement('li');
+        item.className = 'qy-era-year';
+        if (entry) item.classList.add('is-done');
+        else if (era.tradeWindow && year === era.nextYear) item.classList.add('is-next');
+        else if (!era.finished && !era.tradeWindow && year === era.currentYear) item.classList.add('is-current');
+
+        const seasons = document.createElement('span');
+        seasons.className = 'qy-era-year-seasons';
+        seasons.textContent = `S${eraSeasonNo(year)}`;
+
+        const name = document.createElement('span');
+        name.className = 'qy-era-year-name';
+        name.textContent = `${year}`;
+
+        const state = document.createElement('span');
+        state.className = 'qy-era-year-state';
+        if (entry) state.textContent = entry.champion || '已结束';
+        else if (era.tradeWindow && year === era.nextYear) state.textContent = '交易窗口';
+        else if (!era.finished && !era.tradeWindow && year === era.currentYear) state.textContent = '进行中';
+        else state.textContent = '未开始';
+
+        item.append(seasons, name, state);
+        eraYearsEl.append(item);
+      }
+    }
+
+    if (eraCurrentEl) {
+      if (era.tradeWindow && era.nextYear) {
+        eraCurrentEl.textContent = `S${eraSeasonNo(era.nextYear)} · ${era.nextYear} 交易窗口`;
+      } else {
+        eraCurrentEl.textContent = `S${era.seasonNo} · ${era.currentYear}`;
+      }
+    }
+    if (eraNoteEl) {
+      if (era.finished) {
+        eraNoteEl.textContent = `${ERA_START_YEAR}–${ERA_END_YEAR} · 26 个赛年全部结束。`;
+      } else if (era.tradeWindow && era.nextYear) {
+        eraNoteEl.textContent = `S${eraSeasonNo(era.nextYear)} · ${era.nextYear} 交易窗口 · 总决赛结束到春季赛开始，成员变动与训练赛将在此阶段发生。`;
+      } else {
+        eraNoteEl.textContent = `S${era.seasonNo} · ${era.currentYear} 赛年进行中，春季赛至总决赛共 ${SHANHAI_MODE ? 3 : 5} 届。`;
+      }
+    }
   }
 
   function renderSeasonBar() {
@@ -3116,7 +3432,16 @@
 
     const current = seasonCup.events[seasonCup.currentIndex];
     if (seasonSeedNote && current) {
-      if (seasonCup.finished) {
+      if (ERA_MODE && era) {
+        if (era.finished) {
+          seasonSeedNote.textContent = `S26 · 2050 赛年结束 · 2025–2050 全部 ${ERA_END_YEAR - ERA_START_YEAR + 1} 个赛年已完成。`;
+        } else if (era.tradeWindow && era.nextYear) {
+          const nextStart = qyEventDate(0, era.nextYear);
+          seasonSeedNote.textContent = `S${eraSeasonNo(era.nextYear)} · ${era.nextYear} 交易窗口 · 春季赛 ${shFormatDate(nextStart)} 开始 · 成员变动与训练赛同步进行。`;
+        } else {
+          seasonSeedNote.textContent = `S${era.seasonNo} · ${era.currentYear} 年 · 本届种子（${current.seedSource}）：${current.seeds.join('、')}`;
+        }
+      } else if (seasonCup.finished) {
         seasonSeedNote.textContent = '赛季已结束 · 五届比赛全部完成。';
       } else if (seasonCup.idle) {
         const next = SEASON_EVENT_DEFS[seasonCup.idleNext];
@@ -3130,17 +3455,21 @@
     if (seasonClockEl) seasonClockEl.textContent = shFormatDate(seasonCup.clock);
     if (seasonSummaryBtn) seasonSummaryBtn.hidden = !seasonCup.finished;
     if (seasonAdvanceBtn) {
-      const canAdvance = seasonCup.idle && !seasonCup.finished;
+      const canAdvance = ERA_MODE
+        ? Boolean((era?.tradeWindow || seasonCup.idle) && !era?.finished)
+        : Boolean(seasonCup.idle && !seasonCup.finished);
       seasonAdvanceBtn.hidden = !canAdvance;
       seasonAdvanceBtn.disabled = !canAdvance;
       if (canAdvance) {
-        seasonAdvanceBtn.textContent = `推进到${SEASON_EVENT_DEFS[seasonCup.idleNext].label}`;
+        seasonAdvanceBtn.textContent = ERA_MODE && era.tradeWindow
+          ? `推进到 S${eraSeasonNo(era.nextYear)} · ${era.nextYear}`
+          : `推进到${SEASON_EVENT_DEFS[seasonCup.idleNext].label}`;
       }
     }
 
     if (seasonNoticeListEl) {
       seasonNoticeListEl.textContent = '';
-      const notices = seasonCup.notifications.slice(-30).reverse();
+      const notices = [...seasonCup.notifications].sort((a, b) => a.time - b.time).slice(-30).reverse();
       if (notices.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'sh-notice-empty';
@@ -3161,6 +3490,7 @@
     if (seasonNoticeSummaryEl) {
       seasonNoticeSummaryEl.textContent = `累计通知 ${seasonCup.notifications.length} 条`;
     }
+    renderEraBar();
     restartBtn.textContent = '重开赛季';
   }
 
@@ -3315,7 +3645,9 @@
     });
 
     lastSummary = { kind: 'season', stats: seasonCup.totalStats, title: '青云杯 · 赛季成绩汇总' };
-    summaryAction.textContent = '重新开始赛季';
+    summaryAction.textContent = ERA_MODE
+      ? (era?.finished ? '重新开始赛年' : '进入交易窗口')
+      : '重新开始赛季';
     openModal(summaryModal);
   }
 
@@ -3788,7 +4120,17 @@
     }
 
     if (shanhaiSeasonNoteEl) {
-      if (shanhaiCup.finished) {
+      if (ERA_MODE && era) {
+        if (era.finished) {
+          shanhaiSeasonNoteEl.textContent = `S26 · 2050 赛年结束 · 2025–2050 全部 ${ERA_END_YEAR - ERA_START_YEAR + 1} 个赛年已完成。`;
+        } else if (era.tradeWindow && era.nextYear) {
+          const nextStart = shEventDate(0, era.nextYear);
+          shanhaiSeasonNoteEl.textContent = `S${eraSeasonNo(era.nextYear)} · ${era.nextYear} 交易窗口 · 春季赛 ${shFormatDate(nextStart)} 开始 · 成员变动与训练赛同步进行。`;
+        } else {
+          const current = SHANHAI_EVENT_DEFS[shanhaiCup.currentIndex];
+          shanhaiSeasonNoteEl.textContent = `S${era.seasonNo} · ${era.currentYear} 年 · 正在进行：${current.label} · 无种子队 · 每届重新随机分组。`;
+        }
+      } else if (shanhaiCup.finished) {
         shanhaiSeasonNoteEl.textContent = '赛季已结束 · 三届比赛均不设种子队，每届重新随机分组。';
       } else if (shanhaiCup.idle) {
         const next = SHANHAI_EVENT_DEFS[shanhaiCup.idleNext];
@@ -3801,18 +4143,22 @@
 
     if (shanhaiSeasonSummaryBtn) shanhaiSeasonSummaryBtn.hidden = !shanhaiCup.finished;
     if (shanhaiAdvanceBtn) {
-      const canAdvance = shanhaiCup.idle && !shanhaiCup.finished;
+      const canAdvance = ERA_MODE
+        ? Boolean((era?.tradeWindow || shanhaiCup.idle) && !era?.finished)
+        : Boolean(shanhaiCup.idle && !shanhaiCup.finished);
       shanhaiAdvanceBtn.hidden = !canAdvance;
       shanhaiAdvanceBtn.disabled = !canAdvance;
       if (canAdvance) {
-        shanhaiAdvanceBtn.textContent = `推进到${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext].label}`;
+        shanhaiAdvanceBtn.textContent = ERA_MODE && era.tradeWindow
+          ? `推进到 S${eraSeasonNo(era.nextYear)} · ${era.nextYear}`
+          : `推进到${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext].label}`;
       }
     }
     if (shanhaiClockEl) shanhaiClockEl.textContent = shFormatDate(shanhaiCup.clock);
 
     if (shanhaiNoticeListEl) {
       shanhaiNoticeListEl.textContent = '';
-      const notices = shanhaiCup.notifications.slice(-30).reverse();
+      const notices = [...shanhaiCup.notifications].sort((a, b) => a.time - b.time).slice(-30).reverse();
       if (notices.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'sh-notice-empty';
@@ -3833,6 +4179,7 @@
     if (shanhaiNoticeSummaryEl) {
       shanhaiNoticeSummaryEl.textContent = `累计通知 ${shanhaiCup.notifications.length} 条`;
     }
+    renderEraBar();
   }
 
   function renderShanhai() {
@@ -4167,8 +4514,16 @@
 
     if (lastSummary.kind === 'shanhai-stage') {
       summaryAction.textContent = lastSummary.stageIdx === 6 ? '查看本届汇总' : '进入下一赛段';
+    } else if (lastSummary.kind === 'shanhai-season') {
+      summaryAction.textContent = ERA_MODE
+        ? (era?.finished ? '重新开始赛年' : '进入交易窗口')
+        : '重新开始山海杯';
     } else if (lastSummary.kind === 'shanhai-overall') {
       summaryAction.textContent = SHANHAI_SEASON_MODE ? '进入休赛期' : '重新开始山海杯';
+    } else if (lastSummary.kind === 'season') {
+      summaryAction.textContent = ERA_MODE
+        ? (era?.finished ? '重新开始赛年' : '进入交易窗口')
+        : '重新开始赛季';
     } else if (lastSummary.kind === 'overall') {
       if (SEASON_MODE && seasonCup && !seasonCup.finished) {
         summaryAction.textContent = '进入休赛期';
@@ -4208,6 +4563,21 @@
     }
 
     if (lastSummary.kind === 'shanhai-season') {
+      if (ERA_MODE) {
+        if (era?.finished) {
+          startEra();
+          return;
+        }
+        if (era) {
+          era.tradeWindow = true;
+          era.tradeStart = era.tradeStart || new Date(shanhaiCup.clock);
+          era.nextYear = era.currentYear + 1;
+        }
+        lastSummary = null;
+        render();
+        tipEl.textContent = '已进入赛年交易窗口，点击「推进到下一赛年」继续。';
+        return;
+      }
       shStartSeasonCup();
       return;
     }
@@ -4225,6 +4595,21 @@
     }
 
     if (SEASON_MODE && lastSummary.kind === 'season') {
+      if (ERA_MODE) {
+        if (era?.finished) {
+          startEra();
+          return;
+        }
+        if (era) {
+          era.tradeWindow = true;
+          era.tradeStart = era.tradeStart || new Date(seasonCup.clock);
+          era.nextYear = era.currentYear + 1;
+        }
+        lastSummary = null;
+        render();
+        tipEl.textContent = '已进入赛年交易窗口，点击「推进到下一赛年」继续。';
+        return;
+      }
       startSeasonCup();
       return;
     }
@@ -5270,7 +5655,12 @@
       shanhaiCup?.idle ? 1 : 0,
       shanhaiCup?.clock?.getTime?.() || '',
       shanhai?.roundIndex ?? '',
-      shanhai?.groups?.length ?? ''
+      shanhai?.groups?.length ?? '',
+      era?.currentYear ?? '',
+      era?.seasonNo ?? '',
+      era?.tradeWindow ? 1 : 0,
+      era?.finished ? 1 : 0,
+      era?.history?.length ?? ''
     ].join('|');
   }
 
@@ -5287,9 +5677,31 @@
   }
 
   function currentSaveLabel() {
+    if (SAVE_MODE === 'qingyun-era' && era) {
+      const event = seasonCup?.events?.[seasonCup.currentIndex];
+      let stage = era.finished ? '赛年结束' : (era.tradeWindow ? '赛年交易窗口' : (STAGE_NAMES[season?.stageIdx] || '未开始'));
+      if (seasonCup?.idle) stage = `休赛期 · 下一届 ${SEASON_EVENT_DEFS[seasonCup.idleNext]?.label || ''}`.trim();
+      return `S${era.seasonNo} · ${era.currentYear} · ${event?.label || '青云杯'} · ${stage}`;
+    }
+    if (SAVE_MODE === 'shanhai-era' && era) {
+      const event = shanhaiCup?.events?.[shanhaiCup.currentIndex];
+      let stage = era.finished ? '赛年结束' : (era.tradeWindow ? '赛年交易窗口' : (SHANHAI_STAGE_NAMES[season?.stageIdx] || '未开始'));
+      if (shanhaiCup?.idle) stage = `休赛期 · 下一届 ${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext]?.label || ''}`.trim();
+      return `S${era.seasonNo} · ${era.currentYear} · ${event?.label || '山海杯'} · ${stage}`;
+    }
     if (SAVE_MODE === 'qingyun-season') {
       const event = seasonCup?.events?.[seasonCup.currentIndex];
       let stage = STAGE_NAMES[season?.stageIdx] || '未开始';
+      if (ERA_MODE && era) {
+        const seasonLabel = `S${era.seasonNo} · ${era.currentYear}`;
+        if (era.finished) stage = '赛年结束';
+        else if (era.tradeWindow) stage = '赛年交易窗口';
+        else if (seasonCup?.idle) {
+          const next = SEASON_EVENT_DEFS[seasonCup.idleNext];
+          stage = `休赛期 · 下一届 ${next?.label || ''}`.trim();
+        } else if (season?.finished) stage = '本届结束';
+        return `${seasonLabel} · ${event?.label || '青云杯'} · ${stage}`;
+      }
       if (seasonCup?.finished) stage = '赛季结束';
       else if (seasonCup?.idle) {
         const next = SEASON_EVENT_DEFS[seasonCup.idleNext];
@@ -5302,6 +5714,15 @@
 
     const event = shanhaiCup?.events?.[shanhaiCup.currentIndex];
     let stage = SHANHAI_STAGE_NAMES[season?.stageIdx] || '未开始';
+    if (ERA_MODE && era) {
+      const seasonLabel = `S${era.seasonNo} · ${era.currentYear}`;
+      if (era.finished) stage = '赛年结束';
+      else if (era.tradeWindow) stage = '赛年交易窗口';
+      else if (shanhaiCup?.idle) {
+        stage = `休赛期 · 下一届 ${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext]?.label || ''}`.trim();
+      }
+      return `${seasonLabel} · ${event?.label || '山海杯'} · ${stage}`;
+    }
     if (shanhaiCup?.finished) stage = '赛季结束';
     else if (shanhaiCup?.idle) {
       stage = `休赛期 · 下一届 ${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext]?.label || ''}`.trim();
@@ -5315,6 +5736,7 @@
       officialTeams,
       season,
       seasonCup,
+      era,
       shanhai,
       shanhaiCup,
       preserveStrengths,
@@ -5325,8 +5747,9 @@
 
   function validateImportedSave(save) {
     if (!save || save.mode !== SAVE_MODE) {
-      const target = save?.mode === 'shanhai-season' ? '山海杯赛季' : '青云杯赛季';
-      throw new Error(`这是${target}存档，请在对应页面导入`);
+      const target = save?.mode?.startsWith('shanhai') ? '山海杯' : '青云杯';
+      const source = save?.mode?.includes('era') ? '赛年' : '赛季';
+      throw new Error(`这是${target}${source}存档，请在对应页面导入`);
     }
 
     const state = save.state;
@@ -5338,12 +5761,15 @@
       throw new Error('存档缺少赛段数据');
     }
 
-    if (SAVE_MODE === 'qingyun-season') {
+    if (SAVE_MODE === 'qingyun-season' || SAVE_MODE === 'qingyun-era') {
       if (!state.seasonCup || !Array.isArray(state.seasonCup.events)) {
         throw new Error('存档缺少青云杯赛季进度');
       }
     } else if (!state.shanhaiCup || !Array.isArray(state.shanhaiCup.events) || !state.shanhai) {
       throw new Error('存档缺少山海杯赛季进度');
+    }
+    if (ERA_MODE && (!state.era || !Array.isArray(state.era.history))) {
+      throw new Error('存档缺少赛年进度');
     }
   }
 
@@ -5353,6 +5779,13 @@
     closeModal(restartModal);
 
     const state = save.state;
+    if (ERA_MODE && state.era) {
+      if (!Array.isArray(state.era.history)) state.era.history = [];
+      if (!Array.isArray(state.era.notifications)) state.era.notifications = [];
+      if (state.era.tradeStart === undefined) state.era.tradeStart = null;
+      if (state.era.tradeWindow === undefined) state.era.tradeWindow = false;
+      if (state.era.nextYear === undefined) state.era.nextYear = null;
+    }
     if (state.seasonCup) {
       if (!Array.isArray(state.seasonCup.notifications)) state.seasonCup.notifications = [];
       if (!state.seasonCup.clock) state.seasonCup.clock = qyEventDate(state.seasonCup.currentIndex || 0);
@@ -5370,6 +5803,11 @@
     officialTeams = state.officialTeams;
     season = state.season;
     seasonCup = state.seasonCup || null;
+    era = state.era || null;
+    if (era) {
+      if (seasonCup) seasonCup.notifications = era.notifications;
+      if (shanhaiCup) shanhaiCup.notifications = era.notifications;
+    }
     shanhai = state.shanhai || null;
     shanhaiCup = state.shanhaiCup || null;
     preserveStrengths = Boolean(state.preserveStrengths);
@@ -5474,7 +5912,8 @@
 
   restartBtn.addEventListener('click', () => openModal(restartModal));
   restartConfirm.addEventListener('click', () => {
-    if (SHANHAI_MODE) {
+    if (ERA_MODE) startEra();
+    else if (SHANHAI_MODE) {
       if (SHANHAI_SEASON_MODE) shStartSeasonCup();
       else shStartTournament();
     } else if (SEASON_MODE) startSeasonCup();
@@ -5505,7 +5944,8 @@
   });
 
   updateSandboxBar();
-  if (SHANHAI_MODE) {
+  if (ERA_MODE) startEra();
+  else if (SHANHAI_MODE) {
     if (SHANHAI_SEASON_MODE) shStartSeasonCup();
     else shStartTournament();
   } else if (SEASON_MODE) startSeasonCup();
