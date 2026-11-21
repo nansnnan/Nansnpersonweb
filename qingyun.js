@@ -38,6 +38,9 @@
     { label: '总决赛' }
   ];
   const SEASON_MODE = Boolean(document.getElementById('qy-season-bar'));
+  const SAVE_MODE = SHANHAI_SEASON_MODE
+    ? 'shanhai-season'
+    : (SEASON_MODE ? 'qingyun-season' : null);
 
   function cloneTeamData(team, index) {
     return {
@@ -94,6 +97,10 @@
   const shanhaiAdvanceBtn = document.getElementById('sh-advance');
   const shanhaiNoticeListEl = document.getElementById('sh-notice-list');
   const shanhaiNoticeSummaryEl = document.getElementById('sh-notice-summary');
+  const saveExportBtn = document.getElementById('qy-save-export');
+  const saveImportBtn = document.getElementById('qy-save-import');
+  const saveFileInput = document.getElementById('qy-save-file');
+  const saveStatusEl = document.getElementById('qy-save-status');
   const restartModal = document.getElementById('restart-modal');
   const restartConfirm = document.getElementById('restart-confirm');
   const sandboxToggle = document.getElementById('qy-sandbox-toggle');
@@ -124,6 +131,7 @@
   let lastResult = null;
   let lastSummary = null;
   let bulkSimulating = false;
+  let lastSavedSignature = '';
 
   function shuffle(list) {
     const array = [...list];
@@ -3666,6 +3674,7 @@
     renderRoundList();
     renderResult();
     renderShanhaiSeasonBar();
+    updateSaveDirtyStatus();
   }
 
   function render() {
@@ -3713,6 +3722,7 @@
     renderSeasonBar();
     renderRoundList();
     renderResult();
+    updateSaveDirtyStatus();
   }
 
   function renderRoundList() {
@@ -5016,6 +5026,204 @@
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && !rtModal.hidden) abortRealtime();
   });
+
+  function setSaveStatus(text, kind = '') {
+    if (!saveStatusEl) return;
+    saveStatusEl.textContent = text;
+    saveStatusEl.classList.remove('is-success', 'is-error');
+    if (kind) saveStatusEl.classList.add(kind);
+  }
+
+  function saveSignature() {
+    const match = season?.currentMatch;
+    return [
+      currentSaveLabel(),
+      season?.stageIdx,
+      season?.stageEnded ? 1 : 0,
+      season?.finished ? 1 : 0,
+      match ? `${match.winsA}:${match.winsB}:${match.games.length}:${match.done ? 1 : 0}` : '',
+      season?.stageStats?.size || 0,
+      seasonCup?.currentIndex ?? '',
+      shanhaiCup?.currentIndex ?? '',
+      shanhaiCup?.idle ? 1 : 0,
+      shanhaiCup?.clock?.getTime?.() || '',
+      shanhai?.roundIndex ?? '',
+      shanhai?.groups?.length ?? ''
+    ].join('|');
+  }
+
+  function updateSaveDirtyStatus() {
+    if (!SAVE_MODE || !saveStatusEl) return;
+    const signature = saveSignature();
+    if (!lastSavedSignature) {
+      lastSavedSignature = signature;
+      return;
+    }
+    if (signature !== lastSavedSignature) {
+      setSaveStatus('有未导出的进度');
+    }
+  }
+
+  function currentSaveLabel() {
+    if (SAVE_MODE === 'qingyun-season') {
+      const event = seasonCup?.events?.[seasonCup.currentIndex];
+      const stage = season?.finished
+        ? '赛季结束'
+        : (STAGE_NAMES[season?.stageIdx] || '未开始');
+      return `${event?.label || '青云杯'} · ${stage}`;
+    }
+
+    const event = shanhaiCup?.events?.[shanhaiCup.currentIndex];
+    let stage = SHANHAI_STAGE_NAMES[season?.stageIdx] || '未开始';
+    if (shanhaiCup?.finished) stage = '赛季结束';
+    else if (shanhaiCup?.idle) {
+      stage = `休赛期 · 下一届 ${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext]?.label || ''}`.trim();
+    }
+    return `${event?.label || '山海杯'} · ${stage}`;
+  }
+
+  function seasonSnapshot() {
+    return {
+      teams,
+      officialTeams,
+      season,
+      seasonCup,
+      shanhai,
+      shanhaiCup,
+      preserveStrengths,
+      lastSummary,
+      lastResult
+    };
+  }
+
+  function validateImportedSave(save) {
+    if (!save || save.mode !== SAVE_MODE) {
+      const target = save?.mode === 'shanhai-season' ? '山海杯赛季' : '青云杯赛季';
+      throw new Error(`这是${target}存档，请在对应页面导入`);
+    }
+
+    const state = save.state;
+    if (!state || typeof state !== 'object') throw new Error('存档缺少赛季数据');
+    if (!Array.isArray(state.teams) || !Array.isArray(state.officialTeams)) {
+      throw new Error('存档缺少战队数据');
+    }
+    if (!state.season || typeof state.season !== 'object' || typeof state.season.stageIdx !== 'number') {
+      throw new Error('存档缺少赛段数据');
+    }
+
+    if (SAVE_MODE === 'qingyun-season') {
+      if (!state.seasonCup || !Array.isArray(state.seasonCup.events)) {
+        throw new Error('存档缺少青云杯赛季进度');
+      }
+    } else if (!state.shanhaiCup || !Array.isArray(state.shanhaiCup.events) || !state.shanhai) {
+      throw new Error('存档缺少山海杯赛季进度');
+    }
+  }
+
+  function applyImportedSave(save) {
+    if (realtime) abortRealtime();
+    closeModal(summaryModal);
+    closeModal(restartModal);
+
+    const state = save.state;
+    teams = state.teams;
+    officialTeams = state.officialTeams;
+    season = state.season;
+    seasonCup = state.seasonCup || null;
+    shanhai = state.shanhai || null;
+    shanhaiCup = state.shanhaiCup || null;
+    preserveStrengths = Boolean(state.preserveStrengths);
+    lastSummary = state.lastSummary || null;
+    lastResult = state.lastResult || null;
+    realtime = null;
+    bulkSimulating = false;
+
+    render();
+  }
+
+  async function exportSeasonSave() {
+    if (!SAVE_MODE) return;
+    if (!window.NansnSeasonSave) {
+      setSaveStatus('存档模块未加载', 'is-error');
+      return;
+    }
+
+    const realtimeNote = realtime && !realtime.finished
+      ? '当前实时对局尚未结束，导出后会从本局开始前继续。\n\n'
+      : '';
+    if (!confirm(`${realtimeNote}本页不会自动保存。关闭页面后，未导出的进度会丢失。\n\n点击确定后将下载存档文件，请妥善保管。`)) {
+      return;
+    }
+
+    try {
+      const save = window.NansnSeasonSave.createFile({
+        mode: SAVE_MODE,
+        appVersion: window.NANSN_SITE_VERSION || '',
+        label: currentSaveLabel(),
+        state: seasonSnapshot()
+      });
+      await window.NansnSeasonSave.download(
+        save,
+        window.NansnSeasonSave.filename(SAVE_MODE)
+      );
+      const label = save.label || currentSaveLabel();
+      lastSavedSignature = saveSignature();
+      setSaveStatus(`已导出 · ${label}`, 'is-success');
+      tipEl.textContent = '存档文件已下载。关闭页面前请确认文件已经保存到本地。';
+    } catch (error) {
+      setSaveStatus(`导出失败：${error.message}`, 'is-error');
+      alert(`导出失败：${error.message}`);
+    }
+  }
+
+  async function importSeasonSave() {
+    if (!SAVE_MODE) return;
+    const file = saveFileInput?.files?.[0];
+    if (!file) return;
+
+    try {
+      if (!window.NansnSeasonSave) throw new Error('存档模块未加载');
+
+      const save = await window.NansnSeasonSave.readFile(file);
+      validateImportedSave(save);
+
+      if (save.appVersion && window.NANSN_SITE_VERSION && save.appVersion !== window.NANSN_SITE_VERSION) {
+        if (!confirm(`存档来自 ${save.appVersion}，当前页面为 ${window.NANSN_SITE_VERSION}。\n\n继续导入可能不完全兼容，是否仍要导入？`)) {
+          return;
+        }
+      }
+
+      if (!confirm('导入会覆盖当前赛季进度。\n\n是否继续？')) return;
+
+      applyImportedSave(save);
+      lastSavedSignature = saveSignature();
+      const savedAt = save.savedAt ? new Date(save.savedAt).toLocaleString('zh-CN') : '未知时间';
+      setSaveStatus(`已导入 · ${save.label || currentSaveLabel()} · ${savedAt}`, 'is-success');
+      tipEl.textContent = '存档导入成功，可以继续比赛。';
+    } catch (error) {
+      setSaveStatus(`导入失败：${error.message}`, 'is-error');
+      alert(`导入失败：${error.message}`);
+    } finally {
+      if (saveFileInput) saveFileInput.value = '';
+    }
+  }
+
+  if (SAVE_MODE) {
+    saveExportBtn?.addEventListener('click', exportSeasonSave);
+    saveImportBtn?.addEventListener('click', () => {
+      if (!saveFileInput) return;
+      saveFileInput.value = '';
+      saveFileInput.click();
+    });
+    saveFileInput?.addEventListener('change', importSeasonSave);
+
+    window.addEventListener('beforeunload', (event) => {
+      if (!season || !lastSavedSignature) return;
+      if (saveSignature() === lastSavedSignature) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+  }
 
   singleBtn.addEventListener('click', simulateSingleGame);
   wholeBtn.addEventListener('click', simulateWholeMatch);

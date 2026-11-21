@@ -1,9 +1,19 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.29';
+  const VERSION = 'v1.0.30';
+  window.NANSN_SITE_VERSION = VERSION;
 
   const RELEASES = [
+    {
+      version: 'v1.0.30',
+      date: '2026-11-22',
+      items: [
+        '青云杯赛季模拟器与山海杯赛季模拟器新增手动存档：可导出完整赛季进度文件，包含对阵、比分、统计和训练赛结果。',
+        '新增导入存档文件，刷新或关闭页面后可继续赛季；导入前会提示将覆盖当前进度。',
+        '存档为 .json.gz 压缩文件，页面不会自动保存；离开页面前请手动导出并妥善保管文件。'
+      ]
+    },
     {
       version: 'v1.0.29',
       date: '2026-11-21',
