@@ -225,7 +225,8 @@ window.SHANHAI_DATA = {
         { name: "百万富翁", account: "340056", role: "队员", gold: false, strength: 55, fromQingyun: false },
         { name: "轮回", account: "339998", role: "队员", gold: false, strength: 74, fromQingyun: false },
         { name: "千百万次回忆", account: "341456", role: "队员", gold: false, strength: 78, fromQingyun: false },
-        { name: "时代", account: "341699", role: "队员", gold: false, strength: 76, fromQingyun: false }
+        { name: "时代", account: "341699", role: "队员", gold: false, strength: 76, fromQingyun: false },
+        { name: "天远大", account: "342935", role: "队员", gold: false, strength: 67, fromQingyun: false }
       ]
     },
     {

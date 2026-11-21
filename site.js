@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.25';
+  const VERSION = 'v1.0.26';
 
   const RELEASES = [
+    {
+      version: 'v1.0.26',
+      date: '2026-11-21',
+      items: [
+        '山海杯“日喀则登峰造极”新增队员“天远大”（ID 342935），实力值 67。'
+      ]
+    },
     {
       version: 'v1.0.25',
       date: '2026-11-21',
