@@ -79,14 +79,6 @@
 
       <p id="qy-tip" class="study-tip" role="status"></p>
 
-      <section class="sh-notice-panel">
-        <div class="sh-notice-head">
-          <h2 class="sh-notice-title">训练赛通知</h2>
-          <span id="sh-notice-summary" class="sh-notice-summary"></span>
-        </div>
-        <div id="sh-notice-list" class="sh-notice-list" aria-live="polite"></div>
-      </section>
-
       <div class="qy-realtime-row">
         <button id="qy-realtime" class="btn" type="button">实时比赛模拟</button>
       </div>
@@ -110,12 +102,18 @@
       <div class="qy-actions">
         <button id="qy-single" class="btn btn-primary" type="button">模拟单局</button>
         <button id="qy-whole" class="btn" type="button">模拟整场</button>
+        <button id="qy-sim-stage" class="btn" type="button">模拟赛段</button>
         <button id="qy-next" class="btn" type="button">下一场</button>
       </div>
 
       <details id="sh-groups-details" class="qy-rounds sh-groups-details" hidden>
         <summary>小组赛排名</summary>
         <section id="sh-groups" class="sh-groups" hidden></section>
+      </details>
+
+      <details id="sh-notices-details" class="qy-rounds sh-notices-details">
+        <summary>训练赛通知 <span id="sh-notice-summary" class="sh-notice-summary"></span></summary>
+        <div id="sh-notice-list" class="sh-notice-list" aria-live="polite"></div>
       </details>
 
       <details class="qy-rounds">
