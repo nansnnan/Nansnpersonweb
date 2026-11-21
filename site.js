@@ -1,10 +1,18 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.32';
+  const VERSION = 'v1.0.33';
   window.NANSN_SITE_VERSION = VERSION;
 
   const RELEASES = [
+    {
+      version: 'v1.0.33',
+      date: '2026-11-22',
+      items: [
+        '首页新增“小游戏”分类。',
+        '新增 2048 小游戏，支持方向键、WASD 和手机滑动操作，记录得分与最高分；达成 2048 后可继续挑战更大数字。'
+      ]
+    },
     {
       version: 'v1.0.32',
       date: '2026-11-22',

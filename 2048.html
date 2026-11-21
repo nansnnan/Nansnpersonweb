@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2048 · 南山南的个人站</title>
+  <meta name="description" content="2048 小游戏：合并相同数字方块，挑战 2048，支持键盘与手机滑动操作。">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="tool-hero">
+    <div class="container">
+      <div class="tool-links">
+        <a class="back-link" href="index.html">← 返回首页</a>
+        <a class="back-link" href="ddz.html">斗地主 →</a>
+      </div>
+      <h1 class="tool-title">2048</h1>
+      <p class="tool-subtitle">合并数字方块 · 挑战 2048</p>
+    </div>
+  </header>
+
+  <main class="container tool-main">
+    <section class="tool-panel game2048-panel">
+      <div class="game2048-head">
+        <div class="game2048-scoreboard">
+          <div class="game2048-score-box">
+            <span>得分</span>
+            <strong id="game2048-score">0</strong>
+          </div>
+          <div class="game2048-score-box">
+            <span>最高分</span>
+            <strong id="game2048-best">0</strong>
+          </div>
+        </div>
+        <button id="game2048-new" class="btn btn-primary" type="button">新游戏</button>
+      </div>
+
+      <p class="game2048-help">使用方向键或 W A S D 移动方块；手机可直接在棋盘上滑动。</p>
+
+      <div
+        id="game2048-board"
+        class="game2048-board"
+        role="grid"
+        aria-label="2048 棋盘"
+        aria-describedby="game2048-status"
+        tabindex="0"
+      >
+        <div id="game2048-overlay" class="game2048-overlay" hidden>
+          <div class="game2048-overlay-panel">
+            <strong id="game2048-overlay-title"></strong>
+            <p id="game2048-overlay-text"></p>
+            <div class="game2048-overlay-actions">
+              <button id="game2048-continue" class="btn btn-small" type="button" hidden>继续游戏</button>
+              <button id="game2048-restart" class="btn btn-small" type="button">再来一局</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <p id="game2048-status" class="game2048-status" role="status" aria-live="polite">新游戏开始，努力合并到 2048。</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-meta">
+        <span class="site-version" data-site-version></span>
+        <button
+          class="changelog-trigger"
+          type="button"
+          data-dialog-open="changelog"
+          aria-haspopup="dialog"
+          aria-controls="changelog"
+        >更新公告</button>
+      </div>
+      <p class="footer-slogan">南山南的个人站 · 快捷 · 实用 · 贴心</p>
+    </div>
+  </footer>
+
+  <div id="changelog" class="modal" role="dialog" aria-modal="true" aria-labelledby="changelog-title" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-panel" role="document">
+      <header class="modal-head">
+        <h2 id="changelog-title" class="modal-title">更新公告</h2>
+        <button class="modal-close" type="button" aria-label="关闭更新公告" data-close>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M6 6l12 12M18 6L6 18"></path>
+          </svg>
+        </button>
+      </header>
+      <div class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="site.js"></script>
+  <script src="2048.js"></script>
+</body>
+</html>
