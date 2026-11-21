@@ -1,9 +1,16 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.27';
+  const VERSION = 'v1.0.28';
 
   const RELEASES = [
+    {
+      version: 'v1.0.28',
+      date: '2026-11-21',
+      items: [
+        '调整山海杯小组赛赛程：比赛不再整轮同时开始，而是按场次顺序排入时段；全场每天四场，15:00 与 20:00 各并行两场，日期随时间正常推进。'
+      ]
+    },
     {
       version: 'v1.0.27',
       date: '2026-11-21',

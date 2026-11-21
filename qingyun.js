@@ -1313,6 +1313,7 @@
       match.winnerTeam = match.winsA > match.winsB ? match.teamA : (match.winsB > match.winsA ? match.teamB : null);
       if (match.groupId) shFinalizeGroupMatch(match);
       else finalizeMatch(match);
+      if (SHANHAI_SEASON_MODE) shSyncClockToNextScheduledTime(match);
     }
 
     return game;
@@ -1902,9 +1903,9 @@
     return next;
   }
 
-  function shGroupRoundTime(stageStart, roundIndex) {
-    const dayOffset = Math.floor(roundIndex / 2);
-    const hour = roundIndex % 2 === 0 ? 15 : 20;
+  function shGroupMatchTime(stageStart, matchIndex) {
+    const dayOffset = Math.floor(matchIndex / 4);
+    const hour = matchIndex % 4 < 2 ? 15 : 20;
     return new Date(
       stageStart.getFullYear(),
       stageStart.getMonth(),
@@ -1926,7 +1927,6 @@
     const end = shAddMinutes(start, shGameMinutes(game.plannedBoards));
     match.lastEndTime = end;
     if (!shanhaiCup.clock || end > shanhaiCup.clock) shanhaiCup.clock = end;
-    shSyncClockToNextScheduledTime(match);
   }
 
   function shSyncClockToNextScheduledTime(match) {
@@ -1940,11 +1940,17 @@
     if (shanhai.phase === 'knockout') {
       const nextMatch = round.matches[index + 1];
       if (nextMatch && nextMatch.startTime) nextTime = nextMatch.startTime;
-    } else if (
-      index === round.matches.length - 1 &&
-      shanhai.roundIndex < shanhai.rounds.length - 1
-    ) {
-      nextTime = shanhai.rounds[shanhai.roundIndex + 1].time;
+    } else if (match.startTime) {
+      const slotTime = match.startTime.getTime();
+      const slotMatches = round.matches.filter((item) => item.startTime && item.startTime.getTime() === slotTime);
+      if (slotMatches.every((item) => item.done)) {
+        const nextMatch = round.matches.find((item) => item.startTime && item.startTime > match.startTime);
+        if (nextMatch) {
+          nextTime = nextMatch.startTime;
+        } else if (shanhai.roundIndex < shanhai.rounds.length - 1) {
+          nextTime = shanhai.rounds[shanhai.roundIndex + 1].matches[0]?.startTime || null;
+        }
+      }
     }
 
     if (nextTime) shanhaiCup.clock = new Date(nextTime);
@@ -2032,6 +2038,7 @@
   function shCreateGroupRounds(groups, stageIdx, stageStart) {
     const roundCount = groups[0].pairings.length;
     const rounds = [];
+    let matchIndex = 0;
 
     for (let roundIndex = 0; roundIndex < roundCount; roundIndex++) {
       season.roundUsed = new Set();
@@ -2042,23 +2049,22 @@
           const pair = group.pairings[roundIndex][slot];
           if (!pair) return;
           const [teamA, teamB] = pair;
-          matches.push(createMatch(teamA, teamB, 'BO1', `${group.id}组 · 第${roundIndex + 1}轮`, {
+          const match = createMatch(teamA, teamB, 'BO1', `${group.id}组 · 第${roundIndex + 1}轮`, {
             boardsPerGame: 32,
             decidingBoards: 8,
             allowDraw: true,
             groupId: group.id
-          }));
+          });
+          match.startTime = SHANHAI_SEASON_MODE ? shGroupMatchTime(stageStart, matchIndex) : null;
+          matchIndex++;
+          matches.push(match);
         });
       }
 
-      const time = SHANHAI_SEASON_MODE ? shGroupRoundTime(stageStart, roundIndex) : null;
-      matches.forEach((match) => {
-        match.startTime = time;
-      });
       rounds.push({
         label: `第 ${roundIndex + 1} 轮`,
         matches,
-        time
+        time: matches[0]?.startTime || null
       });
     }
 
@@ -2189,10 +2195,11 @@
 
     shanhai.phase = 'tiebreak';
     shanhai.tiebreakCount = (shanhai.tiebreakCount || 0) + 1;
-    const time = SHANHAI_SEASON_MODE ? shNextDayAt(shanhaiCup.clock, 15) : null;
-    matches.forEach((match) => {
-      match.startTime = time;
+    const baseTime = SHANHAI_SEASON_MODE ? shNextDayAt(shanhaiCup.clock, 15) : null;
+    matches.forEach((match, index) => {
+      match.startTime = baseTime ? shGroupMatchTime(baseTime, index) : null;
     });
+    const time = matches[0]?.startTime || null;
     shanhai.rounds = [{ label: '晋级加赛', matches, time }];
     shanhai.roundIndex = 0;
     season.round = shanhai.rounds[0];
@@ -4367,6 +4374,7 @@
       match.winnerTeam = match.winsA > match.winsB ? match.teamA : (match.winsB > match.winsA ? match.teamB : null);
       if (match.groupId) shFinalizeGroupMatch(match);
       else finalizeMatch(match);
+      if (SHANHAI_SEASON_MODE) shSyncClockToNextScheduledTime(match);
     }
 
     lastResult = {
