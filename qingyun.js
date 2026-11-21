@@ -85,6 +85,7 @@
   const seasonSeedNote = document.getElementById('qy-season-seed-note');
   const seasonSummaryBtn = document.getElementById('qy-season-summary');
   const shanhaiGroupsEl = document.getElementById('sh-groups');
+  const shanhaiGroupsDetailsEl = document.getElementById('sh-groups-details');
   const shanhaiSeasonEventsEl = document.getElementById('sh-season-events');
   const shanhaiSeasonNoteEl = document.getElementById('sh-season-note');
   const shanhaiSeasonSummaryBtn = document.getElementById('sh-season-summary');
@@ -2043,6 +2044,7 @@
   }
 
   function shStartGroupStage(stageIdx) {
+    if (shanhaiGroupsDetailsEl) shanhaiGroupsDetailsEl.open = false;
     season.stageIdx = stageIdx;
     season.stageEnded = false;
     season.finished = false;
@@ -3408,6 +3410,7 @@
   function renderShanhaiGroups() {
     if (!SHANHAI_MODE || !shanhaiGroupsEl) return;
     const visible = shanhai && shanhai.groups.length > 0 && (shanhai.phase === 'group1' || shanhai.phase === 'group2' || shanhai.phase === 'tiebreak');
+    if (shanhaiGroupsDetailsEl) shanhaiGroupsDetailsEl.hidden = !visible;
     shanhaiGroupsEl.hidden = !visible;
     if (!visible) {
       shanhaiGroupsEl.textContent = '';
