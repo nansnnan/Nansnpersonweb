@@ -1,10 +1,18 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.33';
+  const VERSION = 'v1.0.34';
   window.NANSN_SITE_VERSION = VERSION;
 
   const RELEASES = [
+    {
+      version: 'v1.0.34',
+      date: '2026-11-22',
+      items: [
+        '首页新增“其他项目”分类。',
+        '新增“乐队人生游戏”入口，点击后前往 bandgame.ccwu.cc。'
+      ]
+    },
     {
       version: 'v1.0.33',
       date: '2026-11-22',
