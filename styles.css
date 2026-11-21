@@ -35,6 +35,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   scroll-behavior: smooth;
 }
@@ -1530,6 +1534,141 @@ body.modal-open {
   color: var(--text-faint);
 }
 
+.sh-clock-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.sh-clock-label {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.sh-clock {
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sh-season-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sh-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sh-groups[hidden] {
+  display: none;
+}
+
+.sh-group {
+  min-width: 0;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.sh-group-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sh-group-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.sh-group-meta,
+.sh-group-note {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.sh-group-note {
+  margin: 8px 0 0;
+}
+
+.sh-group-table {
+  font-size: 11px;
+}
+
+.sh-group-table th,
+.sh-group-table td {
+  padding: 6px 5px;
+}
+
+.sh-group-table tr.is-advance td {
+  background: rgba(70, 190, 120, 0.13);
+}
+
+.sh-group-table tr.is-eliminate td {
+  background: rgba(220, 90, 90, 0.1);
+}
+
+.sh-notice-panel {
+  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.sh-notice-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sh-notice-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sh-notice-summary {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+
+.sh-notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.sh-notice-item,
+.sh-notice-empty {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text-soft);
+}
+
+.sh-notice-empty {
+  color: var(--text-faint);
+}
+
+.sh-notice-time {
+  margin-right: 6px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
 .qy-season-details {
   padding: 10px 12px;
   background: var(--bg);
@@ -2693,6 +2832,19 @@ body.modal-open {
 
   .qy-season-event:last-child {
     grid-column: 1 / -1;
+  }
+
+  .sh-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .sh-clock-wrap {
+    align-items: flex-start;
+  }
+
+  .sh-season-actions .btn,
+  .sh-season-actions .mini-btn {
+    flex: 1;
   }
 
   .qy-match {

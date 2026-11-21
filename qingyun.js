@@ -1,7 +1,9 @@
 (() => {
   'use strict';
 
-  const DATA = window.QINGYUN_DATA;
+  const SHANHAI_MODE = document.body.dataset.game === 'shanhai';
+  const SHANHAI_SEASON_MODE = SHANHAI_MODE && document.body.dataset.season === 'true';
+  const DATA = SHANHAI_MODE ? window.SHANHAI_DATA : window.QINGYUN_DATA;
   const { CARD_VALUE, RANKS, ALL_RANKS, getType, beats, sortCards } = window.DDZRules;
   const STAGE_NAMES = [
     '第一赛段 · 瑞士轮 24 进 16',
@@ -13,6 +15,21 @@
   const ROUND_LABELS = ['第一轮', '第二轮', '第三轮', '第四轮', '第五轮'];
   const BOARDS_PER_GAME = [12, 16, 20, 20, 20];
   const DECIDING_BOARDS = 8;
+  const SHANHAI_STAGE_NAMES = [
+    '小组赛第一赛段 · 32 进 24',
+    '小组赛第二赛段 · 24 进 16',
+    '淘汰赛 · 16 强',
+    '淘汰赛 · 八强',
+    '淘汰赛 · 半决赛',
+    '三四名决赛',
+    '冠军赛'
+  ];
+  const SHANHAI_EVENT_DEFS = [
+    { label: '春季赛', start: [2026, 3, 1, 15, 0] },
+    { label: '秋季赛', start: [2026, 7, 1, 15, 0] },
+    { label: '总决赛', start: [2026, 11, 1, 15, 0] }
+  ];
+  const SHANHAI_SEASON_START = [2026, 2, 1, 9, 0];
   const SEASON_EVENT_DEFS = [
     { label: '春季赛' },
     { label: '夏季赛' },
@@ -67,6 +84,14 @@
   const seasonEventsEl = document.getElementById('qy-season-events');
   const seasonSeedNote = document.getElementById('qy-season-seed-note');
   const seasonSummaryBtn = document.getElementById('qy-season-summary');
+  const shanhaiGroupsEl = document.getElementById('sh-groups');
+  const shanhaiSeasonEventsEl = document.getElementById('sh-season-events');
+  const shanhaiSeasonNoteEl = document.getElementById('sh-season-note');
+  const shanhaiSeasonSummaryBtn = document.getElementById('sh-season-summary');
+  const shanhaiClockEl = document.getElementById('sh-clock');
+  const shanhaiAdvanceBtn = document.getElementById('sh-advance');
+  const shanhaiNoticeListEl = document.getElementById('sh-notice-list');
+  const shanhaiNoticeSummaryEl = document.getElementById('sh-notice-summary');
   const restartModal = document.getElementById('restart-modal');
   const restartConfirm = document.getElementById('restart-confirm');
   const sandboxToggle = document.getElementById('qy-sandbox-toggle');
@@ -92,6 +117,8 @@
 
   let season = null;
   let seasonCup = null;
+  let shanhai = null;
+  let shanhaiCup = null;
   let lastResult = null;
   let lastSummary = null;
 
@@ -130,6 +157,20 @@
   }
 
   function prepareTeams(list = teams, preserve = false) {
+    if (SHANHAI_MODE) {
+      list.forEach((team) => {
+        team.seed = false;
+        team.seedBonus = 0;
+        team.players.forEach((player) => {
+          if (Number.isFinite(player.strength)) return;
+          let strength = 55 + (hash(`${player.account}:${player.name}:shanhai`) % 31);
+          if (player.gold) strength += 3 + (hash(`${player.account}:gold`) % 3);
+          player.strength = strength;
+        });
+      });
+      return;
+    }
+
     list.forEach((team) => {
       team.seedBonus = team.seed ? 5 + (hash(`${team.name}:seed`) % 4) : 0;
       team.players.forEach((player) => {
@@ -308,7 +349,7 @@
     return new Map();
   }
 
-  function createMatch(teamA, teamB, format, label) {
+  function createMatch(teamA, teamB, format, label, options = {}) {
     const formatN = Number(format.replace('BO', ''));
     const used = season.roundUsed || new Set();
     const squadA = pickSquad(teamA, season.stageIdx, used);
@@ -331,7 +372,13 @@
       stats: createStatsMap(),
       done: false,
       recorded: false,
-      winnerTeam: null
+      winnerTeam: null,
+      boardsPerGame: options.boardsPerGame,
+      decidingBoards: options.decidingBoards,
+      allowDraw: Boolean(options.allowDraw),
+      groupId: options.groupId || null,
+      tiebreak: Boolean(options.tiebreak),
+      startTime: null
     };
 
     assignPairs(match);
@@ -1201,10 +1248,13 @@
     maybeSubstitute(match);
 
     const deciding =
+      !match.allowDraw &&
       season.stageIdx >= 1 &&
       match.winsA === match.target - 1 &&
       match.winsB === match.target - 1;
-    const plannedBoards = deciding ? DECIDING_BOARDS : BOARDS_PER_GAME[season.stageIdx];
+    const boardsPerGame = match.boardsPerGame || BOARDS_PER_GAME[season.stageIdx];
+    const decidingBoards = match.decidingBoards || DECIDING_BOARDS;
+    const plannedBoards = deciding ? decidingBoards : boardsPerGame;
 
     const maps = [sessionStats, match.stats, season.stageStats, season.totalStats];
     const boards = [];
@@ -1218,20 +1268,22 @@
       scoreB += board.pointsB;
 
       const remaining = plannedBoards - i - 1;
-      if (season.stageIdx >= 2 && Math.abs(scoreA - scoreB) > remaining * 12) break;
+      if (!SHANHAI_MODE && season.stageIdx >= 2 && Math.abs(scoreA - scoreB) > remaining * 12) break;
     }
 
-    let extra = 0;
-    while (scoreA === scoreB) {
-      const board = playBoard(match, match.games.length, plannedBoards + extra, maps);
-      boards.push(board);
-      scoreA += board.pointsA;
-      scoreB += board.pointsB;
-      extra++;
-      if (extra >= 12) break;
+    if (!match.allowDraw) {
+      let extra = 0;
+      while (scoreA === scoreB) {
+        const board = playBoard(match, match.games.length, plannedBoards + extra, maps);
+        boards.push(board);
+        scoreA += board.pointsA;
+        scoreB += board.pointsB;
+        extra++;
+        if (extra >= 12) break;
+      }
     }
 
-    const winner = scoreA > scoreB ? match.teamA : match.teamB;
+    const winner = scoreA === scoreB ? null : (scoreA > scoreB ? match.teamA : match.teamB);
     const game = {
       index: match.games.length + 1,
       boards,
@@ -1245,14 +1297,21 @@
     };
 
     if (winner === match.teamA) match.winsA++;
-    else match.winsB++;
+    else if (winner === match.teamB) match.winsB++;
 
     match.games.push(game);
+    if (SHANHAI_SEASON_MODE) shAdvanceClockForGame(game, match);
 
-    if (match.winsA >= match.target || match.winsB >= match.target) {
+    const matchComplete =
+      match.winsA >= match.target ||
+      match.winsB >= match.target ||
+      (match.allowDraw && match.games.length >= match.formatN);
+
+    if (matchComplete) {
       match.done = true;
-      match.winnerTeam = match.winsA > match.winsB ? match.teamA : match.teamB;
-      finalizeMatch(match);
+      match.winnerTeam = match.winsA > match.winsB ? match.teamA : (match.winsB > match.winsA ? match.teamB : null);
+      if (match.groupId) shFinalizeGroupMatch(match);
+      else finalizeMatch(match);
     }
 
     return game;
@@ -1428,6 +1487,12 @@
 
   function setCurrentMatch(match) {
     season.currentMatch = match || null;
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup || !match) return;
+
+    const time = match.startTime || season.round?.time;
+    if (time && (!shanhaiCup.clock || time > shanhaiCup.clock)) {
+      shanhaiCup.clock = new Date(time);
+    }
   }
 
   function assignTeamRank(team, rank) {
@@ -1472,7 +1537,8 @@
     if (rank === 4) return '殿军';
     if (rank <= 8) return '八强';
     if (rank <= 16) return '十六强';
-    return '第一赛段淘汰';
+    if (SHANHAI_MODE && rank <= 24) return '小组赛第二赛段淘汰';
+    return SHANHAI_MODE ? '小组赛第一赛段淘汰' : '第一赛段淘汰';
   }
 
   function teamRankingsTable() {
@@ -1780,11 +1846,8 @@
     render();
   }
 
-  function resetSeason() {
-    closeModal(summaryModal);
-    closeModal(restartModal);
-    prepareTeams(teams, preserveStrengths);
-    season = {
+  function createSeasonState() {
+    return {
       stageIdx: 0,
       stageStats: createStatsMap(),
       totalStats: createStatsMap(),
@@ -1801,9 +1864,831 @@
       currentMatch: null,
       round: null
     };
+  }
+
+  function resetSeason() {
+    closeModal(summaryModal);
+    closeModal(restartModal);
+    prepareTeams(teams, preserveStrengths);
+    season = createSeasonState();
     lastResult = null;
     lastSummary = null;
     startStage(0);
+  }
+
+  function shDate(parts) {
+    return new Date(parts[0], parts[1], parts[2], parts[3] || 0, parts[4] || 0, 0, 0);
+  }
+
+  function shAddMinutes(date, minutes) {
+    return new Date(date.getTime() + minutes * 60000);
+  }
+
+  function shFormatDate(date) {
+    const pad = (value) => String(value).padStart(2, '0');
+    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function shGameMinutes(boards) {
+    if (boards >= 32) return 68 + randomInt(-10, 10);
+    if (boards >= 20) return 45 + randomInt(-10, 10);
+    return 18 + randomInt(-5, 5);
+  }
+
+  function shNextDayAt(date, hour) {
+    const next = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, 0, 0, 0);
+    if (next <= date) next.setDate(next.getDate() + 1);
+    return next;
+  }
+
+  function shGroupRoundTime(stageStart, roundIndex) {
+    const dayOffset = Math.floor(roundIndex / 2);
+    const hour = roundIndex % 2 === 0 ? 15 : 20;
+    return new Date(
+      stageStart.getFullYear(),
+      stageStart.getMonth(),
+      stageStart.getDate() + dayOffset,
+      hour,
+      0,
+      0,
+      0
+    );
+  }
+
+  function shAdvanceClockForGame(game, match) {
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup) return;
+
+    const start = match.lastEndTime
+      ? shAddMinutes(match.lastEndTime, 10)
+      : new Date(match.startTime || shanhaiCup.clock);
+
+    const end = shAddMinutes(start, shGameMinutes(game.plannedBoards));
+    match.lastEndTime = end;
+    if (!shanhaiCup.clock || end > shanhaiCup.clock) shanhaiCup.clock = end;
+  }
+
+  function shBlankGroupRecord(team) {
+    return {
+      team,
+      played: 0,
+      wins: 0,
+      draws: 0,
+      losses: 0,
+      points: 0,
+      scoreFor: 0,
+      scoreAgainst: 0,
+      net: 0,
+      tieWins: 0,
+      tieNet: 0
+    };
+  }
+
+  function shCompareGroupRecords(a, b) {
+    return b.points - a.points || b.net - a.net || b.tieWins - a.tieWins || b.tieNet - a.tieNet || a.team.name.localeCompare(b.team.name);
+  }
+
+  function shSortedGroupRecords(group) {
+    return [...group.records.values()].sort(shCompareGroupRecords);
+  }
+
+  function shRoundRobin(teams) {
+    const list = [...teams];
+    if (list.length % 2 === 1) list.push(null);
+    const rounds = [];
+    const count = list.length;
+
+    for (let round = 0; round < count - 1; round++) {
+      const pairs = [];
+      for (let i = 0; i < count / 2; i++) {
+        const a = list[i];
+        const b = list[count - 1 - i];
+        if (a && b) pairs.push([a, b]);
+      }
+      rounds.push(pairs);
+
+      const fixed = list[0];
+      const rest = list.slice(1);
+      rest.unshift(rest.pop());
+      list.splice(0, list.length, fixed, ...rest);
+    }
+
+    return rounds;
+  }
+
+  function shDoubleRoundRobin(teams) {
+    const first = shRoundRobin(teams);
+    const second = first.map((round) => round.map(([a, b]) => [b, a]));
+    return [...first, ...second];
+  }
+
+  function shBuildGroups(stageIdx) {
+    const groupCount = stageIdx === 0 ? 8 : 4;
+    const groupSize = stageIdx === 0 ? 4 : 6;
+    const advancing = stageIdx === 0 ? 3 : 4;
+    const ids = stageIdx === 0 ? 'ABCDEFGH' : 'IJKL';
+    const shuffled = shuffle(season.stageTeams);
+    const groups = [];
+
+    for (let i = 0; i < groupCount; i++) {
+      const groupTeams = shuffled.slice(i * groupSize, (i + 1) * groupSize);
+      const group = {
+        id: ids[i],
+        teams: groupTeams,
+        advancing,
+        records: new Map(),
+        pairings: shDoubleRoundRobin(groupTeams),
+        tiebreaks: []
+      };
+      groupTeams.forEach((team) => group.records.set(team.id, shBlankGroupRecord(team)));
+      groups.push(group);
+    }
+
+    return groups;
+  }
+
+  function shCreateGroupRounds(groups, stageIdx, stageStart) {
+    const roundCount = groups[0].pairings.length;
+    const rounds = [];
+
+    for (let roundIndex = 0; roundIndex < roundCount; roundIndex++) {
+      season.roundUsed = new Set();
+      const matches = [];
+      const slots = groups[0].pairings[roundIndex].length;
+      for (let slot = 0; slot < slots; slot++) {
+        groups.forEach((group) => {
+          const pair = group.pairings[roundIndex][slot];
+          if (!pair) return;
+          const [teamA, teamB] = pair;
+          matches.push(createMatch(teamA, teamB, 'BO1', `${group.id}组 · 第${roundIndex + 1}轮`, {
+            boardsPerGame: 32,
+            decidingBoards: 8,
+            allowDraw: true,
+            groupId: group.id
+          }));
+        });
+      }
+
+      const time = SHANHAI_SEASON_MODE ? shGroupRoundTime(stageStart, roundIndex) : null;
+      matches.forEach((match) => {
+        match.startTime = time;
+      });
+      rounds.push({
+        label: `第 ${roundIndex + 1} 轮`,
+        matches,
+        time
+      });
+    }
+
+    return rounds;
+  }
+
+  function shStartGroupStage(stageIdx) {
+    season.stageIdx = stageIdx;
+    season.stageEnded = false;
+    season.finished = false;
+    season.roundUsed = new Set();
+    season.stageStats = createStatsMap();
+    season.metrics = new Map();
+    shanhai.phase = stageIdx === 0 ? 'group1' : 'group2';
+    shanhai.tiebreakCount = 0;
+    shanhai.groups = shBuildGroups(stageIdx);
+    shanhai.advancing = stageIdx === 0 ? 3 : 4;
+
+    const stageStart = SHANHAI_SEASON_MODE
+      ? (stageIdx === 0 ? new Date(shanhaiCup.clock) : shNextDayAt(shanhaiCup.clock, 15))
+      : null;
+    shanhai.rounds = shCreateGroupRounds(shanhai.groups, stageIdx, stageStart);
+    shanhai.roundIndex = 0;
+    season.round = shanhai.rounds[0];
+    setCurrentMatch(season.round.matches[0]);
+    render();
+    tipEl.textContent = `${SHANHAI_STAGE_NAMES[stageIdx]} 开始，本轮 ${season.round.matches.length} 场对阵，每场 32 副。`;
+  }
+
+  function shFinalizeGroupMatch(match) {
+    if (match.recorded) return;
+    match.recorded = true;
+
+    const group = shanhai.groups.find((entry) => entry.id === match.groupId);
+    const game = match.games[match.games.length - 1];
+    if (!group || !game) return;
+
+    const a = group.records.get(match.teamA.id);
+    const b = group.records.get(match.teamB.id);
+    const diff = game.scoreA - game.scoreB;
+
+    if (match.tiebreak) {
+      a.tieNet += diff;
+      b.tieNet -= diff;
+      if (diff > 0) a.tieWins++;
+      else if (diff < 0) b.tieWins++;
+      group.tiebreaks.push(match);
+      return;
+    }
+
+    a.played++;
+    b.played++;
+    a.scoreFor += game.scoreA;
+    a.scoreAgainst += game.scoreB;
+    b.scoreFor += game.scoreB;
+    b.scoreAgainst += game.scoreA;
+    a.net += diff;
+    b.net -= diff;
+
+    if (diff > 0) {
+      a.wins++;
+      a.points += 3;
+      b.losses++;
+    } else if (diff < 0) {
+      b.wins++;
+      b.points += 3;
+      a.losses++;
+    } else {
+      a.draws++;
+      b.draws++;
+      a.points++;
+      b.points++;
+    }
+  }
+
+  function shGroupTieBlock(group) {
+    const sorted = shSortedGroupRecords(group);
+    const cut = group.advancing;
+    if (cut <= 0 || cut >= sorted.length) return null;
+
+    const above = sorted[cut - 1];
+    const below = sorted[cut];
+    if (
+      above.points !== below.points ||
+      above.net !== below.net ||
+      above.tieWins !== below.tieWins ||
+      above.tieNet !== below.tieNet
+    ) return null;
+
+    return sorted.filter((record) =>
+      record.points === above.points &&
+      record.net === above.net &&
+      record.tieWins === above.tieWins &&
+      record.tieNet === above.tieNet
+    );
+  }
+
+  function shStartTiebreak(blocks) {
+    season.roundUsed = new Set();
+    const matches = [];
+    blocks.forEach(({ group, records }) => {
+      if (records.length === 2) {
+        matches.push(createMatch(records[0].team, records[1].team, 'BO1', `${group.id}组 加赛`, {
+          boardsPerGame: 32,
+          decidingBoards: 8,
+          allowDraw: true,
+          groupId: group.id,
+          tiebreak: true
+        }));
+        return;
+      }
+
+      for (let i = 0; i < records.length; i++) {
+        for (let j = i + 1; j < records.length; j++) {
+          matches.push(createMatch(records[i].team, records[j].team, 'BO1', `${group.id}组 加赛`, {
+            boardsPerGame: 32,
+            decidingBoards: 8,
+            allowDraw: true,
+            groupId: group.id,
+            tiebreak: true
+          }));
+        }
+      }
+    });
+
+    if (matches.length === 0) return false;
+
+    shanhai.phase = 'tiebreak';
+    shanhai.tiebreakCount = (shanhai.tiebreakCount || 0) + 1;
+    const time = SHANHAI_SEASON_MODE ? shNextDayAt(shanhaiCup.clock, 15) : null;
+    matches.forEach((match) => {
+      match.startTime = time;
+    });
+    shanhai.rounds = [{ label: '晋级加赛', matches, time }];
+    shanhai.roundIndex = 0;
+    season.round = shanhai.rounds[0];
+    setCurrentMatch(matches[0]);
+    render();
+    tipEl.textContent = '晋级线出现同分同净胜分，已加入 32 副加赛，请手动模拟。';
+    return true;
+  }
+
+  function shRecordGroupEliminations(stageIdx) {
+    const cut = stageIdx === 0 ? 3 : 4;
+    const startRank = stageIdx === 0 ? 25 : 17;
+    const eliminated = [];
+
+    shanhai.groups.forEach((group) => {
+      shSortedGroupRecords(group).slice(cut).forEach((record) => eliminated.push(record));
+    });
+
+    eliminated.sort(shCompareGroupRecords);
+    eliminated.forEach((record, index) => {
+      season.teamRankings.set(record.team.id, startRank + index);
+    });
+  }
+
+  function shCompleteGroupStage() {
+    shRecordGroupEliminations(season.stageIdx);
+    const qualifiers = [];
+    shanhai.groups.forEach((group) => {
+      shSortedGroupRecords(group).slice(0, group.advancing).forEach((record) => qualifiers.push(record.team));
+    });
+    season.qualifiers = qualifiers;
+    season.stageEnded = true;
+
+    if (season.stageIdx === 0) {
+      season.stageTeams = [...qualifiers];
+      shStartGroupStage(1);
+    } else {
+      shStartKnockoutStage(2, qualifiers);
+    }
+  }
+
+  function shResolveGroupStage() {
+    if ((shanhai.tiebreakCount || 0) > 12) {
+      shCompleteGroupStage();
+      return;
+    }
+
+    const blocks = [];
+    shanhai.groups.forEach((group) => {
+      const block = shGroupTieBlock(group);
+      if (block) blocks.push({ group, records: block });
+    });
+
+    if (blocks.length > 0 && shStartTiebreak(blocks)) return;
+
+    shCompleteGroupStage();
+  }
+
+  function shStartKnockoutStage(stageIdx, teamList) {
+    season.stageIdx = stageIdx;
+    season.stageEnded = false;
+    season.finished = false;
+    season.roundUsed = new Set();
+    if (stageIdx === 2) {
+      season.metrics = new Map();
+      season.stageStats = createStatsMap();
+    }
+
+    const shuffled = shuffle(teamList);
+    const matches = [];
+    const base = SHANHAI_SEASON_MODE ? shNextDayAt(shanhaiCup.clock, 19) : null;
+
+    for (let i = 0; i < shuffled.length; i += 2) {
+      const match = createMatch(shuffled[i], shuffled[i + 1], 'BO7', SHANHAI_STAGE_NAMES[stageIdx], {
+        boardsPerGame: 20,
+        decidingBoards: 8,
+        allowDraw: false
+      });
+      if (base) {
+        match.startTime = new Date(base.getFullYear(), base.getMonth(), base.getDate() + i / 2, 19, 0, 0, 0);
+      }
+      matches.push(match);
+    }
+
+    shanhai.phase = 'knockout';
+    shanhai.groups = [];
+    shanhai.rounds = [{ label: SHANHAI_STAGE_NAMES[stageIdx], matches, time: base }];
+    shanhai.roundIndex = 0;
+    season.round = shanhai.rounds[0];
+    setCurrentMatch(matches[0]);
+    render();
+    tipEl.textContent = `${SHANHAI_STAGE_NAMES[stageIdx]} 开始，共 ${matches.length} 场 BO7，每轮重新随机配对。`;
+  }
+
+  function shRankTeams(teamList, startRank) {
+    const sorted = [...teamList].sort((a, b) => compareMetrics(metricFor(a), metricFor(b)));
+    sorted.forEach((team, index) => season.teamRankings.set(team.id, startRank + index));
+    return sorted;
+  }
+
+  function shFinishKnockoutRound(stageIdx) {
+    const matches = season.round.matches;
+    const winners = winnersOf(matches);
+    const losers = losersOf(matches);
+
+    if (stageIdx === 2) {
+      shRankTeams(losers, 9);
+      shStartKnockoutStage(3, winners);
+      return;
+    }
+
+    if (stageIdx === 3) {
+      shRankTeams(losers, 5);
+      shStartKnockoutStage(4, winners);
+      return;
+    }
+
+    if (stageIdx === 4) {
+      shanhai.finalists = winners;
+      shanhai.thirdTeams = losers;
+      shStartKnockoutStage(5, losers);
+      return;
+    }
+
+    if (stageIdx === 5) {
+      const third = winners[0];
+      const fourth = losers[0];
+      season.teamRankings.set(third.id, 3);
+      season.teamRankings.set(fourth.id, 4);
+      shStartKnockoutStage(6, shanhai.finalists);
+      return;
+    }
+
+    const champion = winners[0];
+    const runnerUp = losers[0];
+    season.teamRankings.set(champion.id, 1);
+    season.teamRankings.set(runnerUp.id, 2);
+    season.champion = champion;
+    season.runnerUp = runnerUp;
+    finishShanhaiTournament();
+  }
+
+  function shAdvanceMatch() {
+    const match = season.currentMatch;
+    if (!match || !match.done) return;
+
+    const round = season.round;
+    const index = round.matches.indexOf(match);
+    if (index < round.matches.length - 1) {
+      setCurrentMatch(round.matches[index + 1]);
+      render();
+      return;
+    }
+
+    if (shanhai.phase === 'tiebreak') {
+      shResolveGroupStage();
+      return;
+    }
+
+    if (shanhai.phase === 'group1' || shanhai.phase === 'group2') {
+      if (shanhai.roundIndex < shanhai.rounds.length - 1) {
+        shanhai.roundIndex++;
+        season.round = shanhai.rounds[shanhai.roundIndex];
+        setCurrentMatch(season.round.matches[0]);
+        render();
+      } else {
+        shResolveGroupStage();
+      }
+      return;
+    }
+
+    shFinishKnockoutRound(season.stageIdx);
+  }
+
+  function shStartTournament() {
+    closeModal(summaryModal);
+    closeModal(restartModal);
+    season = createSeasonState();
+    prepareTeams(teams, true);
+    lastResult = null;
+    lastSummary = null;
+    shanhai = {
+      phase: 'group1',
+      groups: [],
+      rounds: [],
+      roundIndex: 0,
+      tiebreakCount: 0,
+      finalists: [],
+      thirdTeams: []
+    };
+    season.stageTeams = [...teams];
+    shStartGroupStage(0);
+  }
+
+  function shEventRankingList() {
+    return teams
+      .map((team) => ({ teamName: team.name, rank: season.teamRankings.get(team.id) || 0 }))
+      .filter((entry) => entry.rank > 0)
+      .sort((a, b) => a.rank - b.rank);
+  }
+
+  function shCaptureSeasonEvent() {
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup) return;
+
+    const event = shanhaiCup.events[shanhaiCup.currentIndex];
+    if (!event || event.completed) return;
+
+    event.rankings = shEventRankingList();
+    event.champion = event.rankings[0]?.teamName || '';
+    event.runnerUp = event.rankings[1]?.teamName || '';
+    event.top4 = event.rankings.slice(0, 4).map((entry) => entry.teamName);
+    event.completed = true;
+    mergeStatsMap(shanhaiCup.totalStats, season.totalStats);
+  }
+
+  function finishShanhaiTournament() {
+    season.finished = true;
+    season.stageEnded = true;
+    season.currentMatch = null;
+    render();
+
+    if (SHANHAI_SEASON_MODE) {
+      shCaptureSeasonEvent();
+      const event = shanhaiCup.events[shanhaiCup.currentIndex];
+      if (shanhaiCup.currentIndex === SHANHAI_EVENT_DEFS.length - 1) {
+        shanhaiCup.finished = true;
+        shanhaiCup.idle = false;
+        lastSummary = { kind: 'shanhai-season', stats: shanhaiCup.totalStats, title: '山海杯 · 赛季成绩汇总' };
+        summaryBtn.textContent = '赛季汇总';
+        summaryBtn.hidden = false;
+        renderShanhaiSeasonBar();
+        openSummary();
+      } else {
+        shanhaiCup.idle = true;
+        shanhaiCup.idleStart = new Date(shanhaiCup.clock);
+        shanhaiCup.idleNext = shanhaiCup.currentIndex + 1;
+        shanhai.phase = 'idle';
+        lastSummary = {
+          kind: 'shanhai-overall',
+          stats: season.totalStats,
+          title: `${event.label} · 选手数据汇总`
+        };
+        summaryBtn.textContent = '本届汇总';
+        summaryBtn.hidden = false;
+        renderShanhaiSeasonBar();
+        openSummary();
+      }
+      return;
+    }
+
+    lastSummary = {
+      kind: 'shanhai-overall',
+      stats: season.totalStats,
+      title: '山海杯 · 本届选手数据汇总'
+    };
+    summaryBtn.textContent = '本届汇总';
+    summaryBtn.hidden = false;
+    openSummary();
+  }
+
+  function shAddNotice(date, text) {
+    if (!shanhaiCup) return;
+    shanhaiCup.notifications.push({ time: new Date(date), text });
+    if (shanhaiCup.notifications.length > 300) shanhaiCup.notifications.shift();
+  }
+
+  function shRunTraining(date, type, teamList) {
+    const boosted = [];
+    teamList.forEach((team) => {
+      if (Math.random() >= 0.1) return;
+      team.players.forEach((player) => {
+        player.strength += 1;
+      });
+      boosted.push(team.name);
+    });
+
+    const names = teamList.map((team) => team.name).join(' vs ');
+    const label = type === 'intra' ? '队内训练赛' : '两队训练赛';
+    const result = boosted.length > 0
+      ? `${boosted.join('、')} 全员实力 +1`
+      : '本次训练未触发实力提升';
+    shAddNotice(date, `${label} · ${names}：${result}。`);
+  }
+
+  function shProcessTrainingUntil(nextStart) {
+    let cursor = new Date(shanhaiCup.clock);
+    cursor.setHours(10, 0, 0, 0);
+    cursor.setDate(cursor.getDate() + 1);
+
+    while (cursor < nextStart) {
+      const day = new Date(cursor);
+      day.setHours(10 + randomInt(0, 6), randomInt(0, 59), 0, 0);
+      if (day < nextStart) {
+        if (Math.random() < 0.5) {
+          shRunTraining(day, 'intra', [teams[randomInt(0, teams.length - 1)]]);
+        } else {
+          const firstIndex = randomInt(0, teams.length - 1);
+          let secondIndex = randomInt(0, teams.length - 2);
+          if (secondIndex >= firstIndex) secondIndex++;
+          shRunTraining(day, 'inter', [teams[firstIndex], teams[secondIndex]]);
+        }
+      }
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    shanhaiCup.clock = new Date(nextStart);
+  }
+
+  function shStartSeasonCup() {
+    closeModal(summaryModal);
+    closeModal(restartModal);
+    officialTeams = cloneTeamList(window.SHANHAI_DATA.teams);
+    teams = officialTeams;
+    prepareTeams(teams, true);
+    season = createSeasonState();
+    shanhai = { phase: 'idle', groups: [], rounds: [], roundIndex: 0 };
+    lastResult = null;
+    lastSummary = null;
+    shanhaiCup = {
+      currentIndex: 0,
+      idleNext: 0,
+      idle: true,
+      idleStart: shDate(SHANHAI_SEASON_START),
+      clock: shDate(SHANHAI_SEASON_START),
+      finished: false,
+      totalStats: createStatsMap(),
+      notifications: [],
+      events: SHANHAI_EVENT_DEFS.map((def) => ({
+        label: def.label,
+        rankings: [],
+        top4: [],
+        champion: '',
+        runnerUp: '',
+        completed: false
+      }))
+    };
+    shAddNotice(shanhaiCup.clock, '赛季开始，春季赛前进入空闲期，各队可自行安排训练赛。');
+    renderShanhaiSeasonBar();
+    render();
+    tipEl.textContent = `当前为赛前空闲期，春季赛将于 ${shFormatDate(shDate(SHANHAI_EVENT_DEFS[0].start))} 开始。`;
+  }
+
+  function shStartSeasonEvent(index) {
+    const def = SHANHAI_EVENT_DEFS[index];
+    if (!def) return;
+
+    shanhaiCup.currentIndex = index;
+    shanhaiCup.idle = false;
+    shanhaiCup.idleNext = null;
+    season = createSeasonState();
+    season.stageTeams = [...teams];
+    lastResult = null;
+    lastSummary = null;
+    shanhai = { phase: 'group1', groups: [], rounds: [], roundIndex: 0, tiebreakCount: 0 };
+    shAddNotice(shanhaiCup.clock, `${def.label}小组赛第一赛段开始。`);
+    shStartGroupStage(0);
+    renderShanhaiSeasonBar();
+  }
+
+  function shAdvanceSeason() {
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup || !shanhaiCup.idle || shanhaiCup.finished) return;
+
+    const index = shanhaiCup.idleNext;
+    const def = SHANHAI_EVENT_DEFS[index];
+    if (!def) return;
+
+    const nextStart = shDate(def.start);
+    shProcessTrainingUntil(nextStart);
+    shStartSeasonEvent(index);
+  }
+
+  function shSeasonEventsTable() {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['赛事', '冠军', '亚军', '季军 / 殿军', '开始日期'].forEach((label) => headRow.append(headerCell(label)));
+    head.append(headRow);
+
+    const body = document.createElement('tbody');
+    SHANHAI_EVENT_DEFS.forEach((def, index) => {
+      const event = shanhaiCup.events[index];
+      const row = document.createElement('tr');
+      row.append(
+        tableCell(def.label, 'qy-strong'),
+        tableCell(event.completed ? event.champion : '—', event.completed ? 'qy-win' : ''),
+        tableCell(event.completed ? event.runnerUp : '—'),
+        tableCell(event.completed ? event.top4.slice(2).join('、') : '—'),
+        tableCell(`${def.start[1] + 1}月${def.start[2]}日`)
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function shSeasonTeamTable() {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['战队', ...SHANHAI_EVENT_DEFS.map((def) => def.label), '冠军', '前四', '最好名次'].forEach((label) => {
+      headRow.append(headerCell(label));
+    });
+    head.append(headRow);
+
+    const rows = teams.map((team) => {
+      const ranks = shanhaiCup.events.map((event) =>
+        event.rankings.find((entry) => entry.teamName === team.name)?.rank || 0
+      );
+      const playedRanks = ranks.filter((rank) => rank > 0);
+      return {
+        team,
+        ranks,
+        titles: ranks.filter((rank) => rank === 1).length,
+        top4: ranks.filter((rank) => rank > 0 && rank <= 4).length,
+        best: playedRanks.length ? Math.min(...playedRanks) : 999
+      };
+    });
+
+    rows.sort((a, b) => a.best - b.best || b.titles - a.titles || b.top4 - a.top4 || a.team.name.localeCompare(b.team.name));
+
+    const body = document.createElement('tbody');
+    rows.forEach(({ team, ranks, titles, top4, best }) => {
+      const row = document.createElement('tr');
+      row.append(tableCell(team.name, 'qy-strong'));
+      ranks.forEach((rank) => {
+        row.append(tableCell(rank ? `第 ${rank} 名` : '—', rank > 0 && rank <= 4 ? 'qy-win' : ''));
+      });
+      row.append(
+        tableCell(String(titles)),
+        tableCell(String(top4)),
+        tableCell(best === 999 ? '—' : `第 ${best} 名`)
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function shEventResultsTable(event) {
+    const table = document.createElement('table');
+    table.className = 'qy-table';
+
+    const head = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['最终名次', '战队', '最终成绩'].forEach((label) => headRow.append(headerCell(label)));
+    head.append(headRow);
+
+    const body = document.createElement('tbody');
+    event.rankings.forEach((entry) => {
+      const row = document.createElement('tr');
+      row.append(
+        tableCell(`第 ${entry.rank} 名`, 'qy-strong'),
+        tableCell(entry.teamName),
+        tableCell(rankingLabel(entry.rank), entry.rank <= 4 ? 'qy-win' : '')
+      );
+      body.append(row);
+    });
+
+    table.append(head, body);
+    return table;
+  }
+
+  function openShanhaiSeasonSummary() {
+    if (!shanhaiCup) return;
+
+    summaryTitle.textContent = '山海杯 · 赛季成绩汇总';
+    summaryBody.classList.add('is-season-summary');
+    summaryBody.textContent = '';
+
+    const completedCount = shanhaiCup.events.filter((event) => event.completed).length;
+    const intro = document.createElement('p');
+    intro.className = 'modal-summary-note';
+    intro.textContent = `春季赛、秋季赛与总决赛共 3 届 · ${teams.length} 支战队 · 已完成 ${completedCount} 届`;
+    summaryBody.append(intro);
+
+    const eventTitle = document.createElement('h4');
+    eventTitle.className = 'qy-stats-title';
+    eventTitle.textContent = '三届比赛结果';
+    summaryBody.append(eventTitle, wrapTable(shSeasonEventsTable()));
+
+    const teamTitle = document.createElement('h4');
+    teamTitle.className = 'qy-stats-title';
+    teamTitle.textContent = '战队赛季成绩';
+    summaryBody.append(teamTitle, wrapTable(shSeasonTeamTable()));
+
+    const playerCount = [...shanhaiCup.totalStats.values()].filter((stat) => stat.games > 0).length;
+    const playerTitle = document.createElement('h4');
+    playerTitle.className = 'qy-stats-title';
+    playerTitle.textContent = '三届累计选手数据';
+    const playerNote = document.createElement('p');
+    playerNote.className = 'modal-summary-note';
+    playerNote.textContent = `共 ${playerCount} 名选手出场 · 按净胜分排序`;
+    summaryBody.append(playerTitle, playerNote, wrapTable(statsTable(shanhaiCup.totalStats)));
+
+    const rankingsTitle = document.createElement('h4');
+    rankingsTitle.className = 'qy-stats-title';
+    rankingsTitle.textContent = '各届完整排名';
+    summaryBody.append(rankingsTitle);
+
+    SHANHAI_EVENT_DEFS.forEach((def, index) => {
+      const event = shanhaiCup.events[index];
+      if (!event.completed) return;
+
+      const details = document.createElement('details');
+      details.className = 'qy-season-details';
+      const summary = document.createElement('summary');
+      summary.textContent = `${def.label} · 完整排名`;
+      details.append(summary, wrapTable(shEventResultsTable(event)));
+      summaryBody.append(details);
+    });
+
+    lastSummary = { kind: 'shanhai-season', stats: shanhaiCup.totalStats, title: '山海杯 · 赛季成绩汇总' };
+    summaryAction.textContent = '重新开始赛季';
+    openModal(summaryModal);
   }
 
   function officialSeedNames() {
@@ -2388,6 +3273,11 @@
   }
 
   function advanceMatch() {
+    if (SHANHAI_MODE) {
+      shAdvanceMatch();
+      return;
+    }
+
     if (!season.currentMatch || !season.currentMatch.done) return;
 
     const round = season.round;
@@ -2433,9 +3323,12 @@
       stats: sessionStats
     };
     render();
+    const score = match.allowDraw
+      ? `${game.scoreA} : ${game.scoreB}`
+      : `${match.winsA} : ${match.winsB}`;
     tipEl.textContent = match.done
-      ? `本场比赛结束：${match.teamA.name} ${match.winsA} : ${match.winsB} ${match.teamB.name}，点击「下一场」继续。`
-      : `第 ${game.index} 局结束，${game.winner.name} 胜。`;
+      ? `本场比赛结束：${match.teamA.name} ${score} ${match.teamB.name}，点击「下一场」继续。`
+      : `第 ${game.index} 局结束，${game.winner ? `${game.winner.name} 胜` : '平局'}。`;
   }
 
   function simulateWholeMatch() {
@@ -2453,13 +3346,213 @@
       stats: match.stats
     };
     render();
-    tipEl.textContent = `本场比赛结束：${match.teamA.name} ${match.winsA} : ${match.winsB} ${match.teamB.name}，点击「下一场」继续。`;
+    const score = match.allowDraw
+      ? `${match.games[match.games.length - 1].scoreA} : ${match.games[match.games.length - 1].scoreB}`
+      : `${match.winsA} : ${match.winsB}`;
+    tipEl.textContent = `本场比赛结束：${match.teamA.name} ${score} ${match.teamB.name}，点击「下一场」继续。`;
   }
 
   /* ---------- UI ---------- */
 
+  function renderShanhaiGroupTable(group) {
+    const card = document.createElement('section');
+    card.className = 'sh-group';
+
+    const head = document.createElement('div');
+    head.className = 'sh-group-head';
+    const title = document.createElement('h3');
+    title.className = 'sh-group-title';
+    title.textContent = `${group.id}组`;
+    const meta = document.createElement('span');
+    meta.className = 'sh-group-meta';
+    meta.textContent = `前 ${group.advancing} 名晋级`;
+    head.append(title, meta);
+
+    const table = document.createElement('table');
+    table.className = 'qy-table sh-group-table';
+    const thead = document.createElement('thead');
+    const headRow = document.createElement('tr');
+    ['排名', '战队', '场次', '胜', '平', '负', '积分', '净胜分'].forEach((label) => headRow.append(headerCell(label)));
+    thead.append(headRow);
+
+    const tbody = document.createElement('tbody');
+    shSortedGroupRecords(group).forEach((record, index) => {
+      const row = document.createElement('tr');
+      row.className = index < group.advancing ? 'is-advance' : 'is-eliminate';
+      row.append(
+        tableCell(String(index + 1), 'qy-strong'),
+        tableCell(record.team.name, 'qy-strong'),
+        tableCell(String(record.played)),
+        tableCell(String(record.wins)),
+        tableCell(String(record.draws)),
+        tableCell(String(record.losses)),
+        tableCell(String(record.points)),
+        tableCell(record.net > 0 ? `+${record.net}` : String(record.net))
+      );
+      tbody.append(row);
+    });
+
+    table.append(thead, tbody);
+    card.append(head, wrapTable(table));
+
+    if (group.tiebreaks.length > 0) {
+      const note = document.createElement('p');
+      note.className = 'sh-group-note';
+      note.textContent = `加赛 ${group.tiebreaks.length} 场`;
+      card.append(note);
+    }
+
+    return card;
+  }
+
+  function renderShanhaiGroups() {
+    if (!SHANHAI_MODE || !shanhaiGroupsEl) return;
+    const visible = shanhai && shanhai.groups.length > 0 && (shanhai.phase === 'group1' || shanhai.phase === 'group2' || shanhai.phase === 'tiebreak');
+    shanhaiGroupsEl.hidden = !visible;
+    if (!visible) {
+      shanhaiGroupsEl.textContent = '';
+      return;
+    }
+
+    shanhaiGroupsEl.textContent = '';
+    shanhai.groups.forEach((group) => {
+      shanhaiGroupsEl.append(renderShanhaiGroupTable(group));
+    });
+  }
+
+  function renderShanhaiSeasonBar() {
+    if (!SHANHAI_SEASON_MODE || !shanhaiCup) return;
+
+    if (shanhaiSeasonEventsEl) {
+      shanhaiSeasonEventsEl.textContent = '';
+      SHANHAI_EVENT_DEFS.forEach((def, index) => {
+        const event = shanhaiCup.events[index];
+        const item = document.createElement('li');
+        item.className = 'qy-season-event';
+        if (event.completed) item.classList.add('is-done');
+        else if (!shanhaiCup.finished && !shanhaiCup.idle && index === shanhaiCup.currentIndex) item.classList.add('is-current');
+
+        const name = document.createElement('span');
+        name.className = 'qy-season-event-name';
+        name.textContent = def.label;
+
+        const state = document.createElement('span');
+        state.className = 'qy-season-event-state';
+        if (event.completed) state.textContent = `冠军：${event.champion}`;
+        else if (shanhaiCup.idle && index === shanhaiCup.idleNext) state.textContent = '休赛期';
+        else if (!shanhaiCup.finished && !shanhaiCup.idle && index === shanhaiCup.currentIndex) state.textContent = '进行中';
+        else state.textContent = '未开始';
+
+        item.append(name, state);
+        shanhaiSeasonEventsEl.append(item);
+      });
+    }
+
+    if (shanhaiSeasonNoteEl) {
+      if (shanhaiCup.finished) {
+        shanhaiSeasonNoteEl.textContent = '赛季已结束 · 三届比赛均不设种子队，每届重新随机分组。';
+      } else if (shanhaiCup.idle) {
+        const next = SHANHAI_EVENT_DEFS[shanhaiCup.idleNext];
+        shanhaiSeasonNoteEl.textContent = `当前为休赛期 · 下一届：${next.label} · 各队自行安排训练赛。`;
+      } else {
+        const current = SHANHAI_EVENT_DEFS[shanhaiCup.currentIndex];
+        shanhaiSeasonNoteEl.textContent = `正在进行：${current.label} · 无种子队 · 每届重新随机分组。`;
+      }
+    }
+
+    if (shanhaiSeasonSummaryBtn) shanhaiSeasonSummaryBtn.hidden = !shanhaiCup.finished;
+    if (shanhaiAdvanceBtn) {
+      const canAdvance = shanhaiCup.idle && !shanhaiCup.finished;
+      shanhaiAdvanceBtn.hidden = !canAdvance;
+      shanhaiAdvanceBtn.disabled = !canAdvance;
+      if (canAdvance) {
+        shanhaiAdvanceBtn.textContent = `推进到${SHANHAI_EVENT_DEFS[shanhaiCup.idleNext].label}`;
+      }
+    }
+    if (shanhaiClockEl) shanhaiClockEl.textContent = shFormatDate(shanhaiCup.clock);
+
+    if (shanhaiNoticeListEl) {
+      shanhaiNoticeListEl.textContent = '';
+      const notices = shanhaiCup.notifications.slice(-30).reverse();
+      if (notices.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'sh-notice-empty';
+        empty.textContent = '暂无训练赛通知。';
+        shanhaiNoticeListEl.append(empty);
+      } else {
+        notices.forEach((notice) => {
+          const item = document.createElement('p');
+          item.className = 'sh-notice-item';
+          const time = document.createElement('span');
+          time.className = 'sh-notice-time';
+          time.textContent = shFormatDate(notice.time);
+          item.append(time, document.createTextNode(notice.text));
+          shanhaiNoticeListEl.append(item);
+        });
+      }
+    }
+    if (shanhaiNoticeSummaryEl) {
+      shanhaiNoticeSummaryEl.textContent = `累计通知 ${shanhaiCup.notifications.length} 条`;
+    }
+  }
+
+  function renderShanhai() {
+    if (!season) return;
+
+    stageEl.textContent = shanhai && shanhai.phase === 'idle'
+      ? '休赛期'
+      : (SHANHAI_STAGE_NAMES[season.stageIdx] || '赛季结束');
+    const roundText = season.finished
+      ? '比赛结束'
+      : season.stageEnded
+        ? '赛段结束'
+        : season.round
+          ? `${season.round.label} · ${season.round.matches.length} 场对阵`
+          : (shanhai && shanhai.phase === 'idle' ? '等待下一届比赛' : '');
+    roundEl.textContent = roundText;
+
+    const match = season.currentMatch;
+    if (match) {
+      teamAEl.textContent = match.teamA.name;
+      teamBEl.textContent = match.teamB.name;
+      seedAEl.hidden = true;
+      seedBEl.hidden = true;
+      if (match.allowDraw) {
+        const game = match.games[match.games.length - 1];
+        formatEl.textContent = '32副';
+        scoreEl.textContent = game ? `${game.scoreA} : ${game.scoreB}` : '0 : 0';
+      } else {
+        formatEl.textContent = match.format;
+        scoreEl.textContent = `${match.winsA} : ${match.winsB}`;
+      }
+    } else {
+      teamAEl.textContent = season.finished ? (season.champion?.name || '—') : '—';
+      teamBEl.textContent = season.finished ? (season.runnerUp?.name || '—') : '—';
+      seedAEl.hidden = true;
+      seedBEl.hidden = true;
+      formatEl.textContent = season.finished ? '冠军 / 亚军' : '';
+      scoreEl.textContent = season.finished ? '冠军' : '0 : 0';
+    }
+
+    const canPlay = Boolean(match) && !match.done && !season.stageEnded && !season.finished;
+    singleBtn.disabled = !canPlay;
+    wholeBtn.disabled = !canPlay;
+    realtimeBtn.disabled = !canPlay;
+    nextBtn.disabled = !match || !match.done || season.stageEnded || season.finished;
+
+    summaryBtn.hidden = !lastSummary;
+    renderShanhaiGroups();
+    renderRoundList();
+    renderResult();
+    renderShanhaiSeasonBar();
+  }
+
   function render() {
     if (!season) return;
+    if (SHANHAI_MODE) {
+      renderShanhai();
+      return;
+    }
 
     stageEl.textContent = STAGE_NAMES[season.stageIdx] || '赛季结束';
     const roundText = season.finished
@@ -2515,12 +3608,13 @@
       if (match === season.currentMatch) item.classList.add('is-current');
 
       const name = document.createElement('span');
-      name.textContent = `${match.teamA.name} vs ${match.teamB.name} · ${match.format}`;
+      name.textContent = `${match.teamA.name} vs ${match.teamB.name} · ${match.allowDraw ? '32副' : match.format}`;
 
+      const game = match.games[match.games.length - 1];
       const result = document.createElement('span');
       result.className = 'qy-round-result';
       result.textContent = match.done
-        ? `${match.winsA} : ${match.winsB}`
+        ? (match.allowDraw && game ? `${game.scoreA} : ${game.scoreB}` : `${match.winsA} : ${match.winsB}`)
         : match === season.currentMatch
           ? '进行中'
           : '待开始';
@@ -2598,13 +3692,18 @@
     const { match, games, stats, scope } = lastResult;
     const title = document.createElement('p');
     title.className = 'qy-result-title';
-    title.textContent = `${match.teamA.name} ${match.winsA} : ${match.winsB} ${match.teamB.name}`;
+    if (match.allowDraw) {
+      const game = games[games.length - 1];
+      title.textContent = `${match.teamA.name} ${game.scoreA} : ${game.scoreB} ${match.teamB.name}`;
+    } else {
+      title.textContent = `${match.teamA.name} ${match.winsA} : ${match.winsB} ${match.teamB.name}`;
+    }
 
     const sub = document.createElement('p');
     sub.className = 'qy-result-sub';
     const totalA = games.reduce((sum, game) => sum + game.scoreA, 0);
     const totalB = games.reduce((sum, game) => sum + game.scoreB, 0);
-    sub.textContent = `${match.format} · ${match.label} · ${scope === 'match' ? '整场结果' : '单局结果'} · 总分 ${totalA} : ${totalB}`;
+    sub.textContent = `${match.allowDraw ? '32副单局' : match.format} · ${match.label} · ${scope === 'match' ? '整场结果' : '单局结果'} · 总分 ${totalA} : ${totalB}`;
 
     resultBody.append(title, sub);
 
@@ -2616,10 +3715,13 @@
       head.className = 'qy-game-head';
 
       const name = document.createElement('span');
-      name.textContent = `第 ${game.index} 局${game.deciding ? '（决胜局）' : ''} · ${game.plannedBoards} 副${game.boards.length < game.plannedBoards ? '（提前结束）' : ''}`;
+      const boardNote = game.boards.length < game.plannedBoards
+        ? '（提前结束）'
+        : (game.boards.length > game.plannedBoards ? `（加副 ${game.boards.length - game.plannedBoards} 副）` : '');
+      name.textContent = `第 ${game.index} 局${game.deciding ? '（决胜局）' : ''} · ${game.plannedBoards} 副${boardNote}`;
 
       const score = document.createElement('span');
-      score.textContent = `${game.scoreA} : ${game.scoreB} · ${game.winner.name} 胜`;
+      score.textContent = `${game.scoreA} : ${game.scoreB} · ${game.winner ? `${game.winner.name} 胜` : '平局'}`;
 
       head.append(name, score);
 
@@ -2693,6 +3795,10 @@
       openSeasonSummary();
       return;
     }
+    if (lastSummary.kind === 'shanhai-season') {
+      openShanhaiSeasonSummary();
+      return;
+    }
 
     summaryTitle.textContent = lastSummary.title;
     summaryBody.classList.remove('is-season-summary');
@@ -2703,7 +3809,7 @@
     const count = [...lastSummary.stats.values()].filter((stat) => stat.games > 0).length;
     note.textContent = `共 ${count} 名选手出场 · 按净胜分排序`;
 
-    if (lastSummary.kind === 'overall') {
+    if (lastSummary.kind === 'overall' || lastSummary.kind === 'shanhai-overall') {
       const teamTitle = document.createElement('h4');
       teamTitle.className = 'qy-stats-title';
       teamTitle.textContent = '队伍最终排名';
@@ -2712,7 +3818,9 @@
 
     summaryBody.append(note, wrapTable(statsTable(lastSummary.stats)));
 
-    if (lastSummary.kind === 'overall') {
+    if (lastSummary.kind === 'shanhai-overall') {
+      summaryAction.textContent = SHANHAI_SEASON_MODE ? '进入休赛期' : '重新开始山海杯';
+    } else if (lastSummary.kind === 'overall') {
       if (SEASON_MODE && seasonCup && seasonCup.currentIndex < SEASON_EVENT_DEFS.length - 1) {
         summaryAction.textContent = `进入${SEASON_EVENT_DEFS[seasonCup.currentIndex + 1].label}`;
       } else {
@@ -2728,6 +3836,23 @@
   function handleSummaryAction() {
     closeModal(summaryModal);
     if (!lastSummary) return;
+
+    if (lastSummary.kind === 'shanhai-season') {
+      shStartSeasonCup();
+      return;
+    }
+
+    if (lastSummary.kind === 'shanhai-overall') {
+      if (SHANHAI_SEASON_MODE) {
+        shanhaiCup.idle = true;
+        shanhai.phase = 'idle';
+        render();
+        tipEl.textContent = '已进入休赛期，点击「推进到下一届」继续。';
+      } else {
+        shStartTournament();
+      }
+      return;
+    }
 
     if (SEASON_MODE && lastSummary.kind === 'season') {
       startSeasonCup();
@@ -3155,7 +4280,7 @@
     });
 
     const diff = Math.abs(realtime.scoreA - realtime.scoreB);
-    if (season.stageIdx >= 2) {
+    if (!SHANHAI_MODE && season.stageIdx >= 2) {
       const remaining = realtime.plannedBoards - realtime.boards.length;
       if (diff > remaining * 12) {
         rtFinishGame();
@@ -3168,7 +4293,7 @@
       return;
     }
 
-    if (diff === 0) {
+    if (diff === 0 && !realtime.match.allowDraw) {
       realtime.plannedBoards++;
       rtStartBoard(realtime, realtime.boardIndex + 1);
       return;
@@ -3187,7 +4312,9 @@
     mergeStatsMap(season.totalStats, realtime.gameStats);
 
     const match = realtime.match;
-    const winner = realtime.scoreA > realtime.scoreB ? match.teamA : match.teamB;
+    const winner = realtime.scoreA === realtime.scoreB
+      ? null
+      : (realtime.scoreA > realtime.scoreB ? match.teamA : match.teamB);
     const game = {
       index: match.games.length + 1,
       boards: realtime.boards,
@@ -3200,14 +4327,21 @@
       lineupB: match.activeB.map((player) => player.name)
     };
 
-    if (winner.id === match.teamA.id) match.winsA++;
-    else match.winsB++;
+    if (winner === match.teamA) match.winsA++;
+    else if (winner === match.teamB) match.winsB++;
     match.games.push(game);
+    if (SHANHAI_SEASON_MODE) shAdvanceClockForGame(game, match);
 
-    if (match.winsA >= match.target || match.winsB >= match.target) {
+    const matchComplete =
+      match.winsA >= match.target ||
+      match.winsB >= match.target ||
+      (match.allowDraw && match.games.length >= match.formatN);
+
+    if (matchComplete) {
       match.done = true;
-      match.winnerTeam = match.winsA > match.winsB ? match.teamA : match.teamB;
-      finalizeMatch(match);
+      match.winnerTeam = match.winsA > match.winsB ? match.teamA : (match.winsB > match.winsA ? match.teamB : null);
+      if (match.groupId) shFinalizeGroupMatch(match);
+      else finalizeMatch(match);
     }
 
     lastResult = {
@@ -3241,10 +4375,13 @@
 
     if (match.games.length > 0) maybeSubstitute(match);
 
-    const deciding = season.stageIdx >= 1 &&
+    const deciding = !match.allowDraw &&
+      season.stageIdx >= 1 &&
       match.winsA === match.target - 1 &&
       match.winsB === match.target - 1;
-    const plannedBoards = deciding ? DECIDING_BOARDS : BOARDS_PER_GAME[season.stageIdx];
+    const plannedBoards = deciding
+      ? (match.decidingBoards || DECIDING_BOARDS)
+      : (match.boardsPerGame || BOARDS_PER_GAME[season.stageIdx]);
 
     realtime = {
       match,
@@ -3608,7 +4745,7 @@
 
     const sub = document.createElement('p');
     sub.className = 'qy-result-sub';
-    sub.textContent = `${game.winner.name} 获胜 · ${realtime.boards.length} 副 · ${realtime.gameStats.size} 名选手出场`;
+    sub.textContent = `${game.winner ? `${game.winner.name} 获胜` : '平局'} · ${realtime.boards.length} 副 · ${realtime.gameStats.size} 名选手出场`;
 
     const actions = document.createElement('div');
     actions.className = 'rt-result-actions';
@@ -3738,10 +4875,15 @@
 
   restartBtn.addEventListener('click', () => openModal(restartModal));
   restartConfirm.addEventListener('click', () => {
-    if (SEASON_MODE) startSeasonCup();
+    if (SHANHAI_MODE) {
+      if (SHANHAI_SEASON_MODE) shStartSeasonCup();
+      else shStartTournament();
+    } else if (SEASON_MODE) startSeasonCup();
     else resetSeason();
   });
   seasonSummaryBtn?.addEventListener('click', openSeasonSummary);
+  shanhaiSeasonSummaryBtn?.addEventListener('click', openShanhaiSeasonSummary);
+  shanhaiAdvanceBtn?.addEventListener('click', shAdvanceSeason);
 
   sandboxToggle.addEventListener('change', () => {
     if (sandboxToggle.checked) openSandboxEditor();
@@ -3763,6 +4905,9 @@
   });
 
   updateSandboxBar();
-  if (SEASON_MODE) startSeasonCup();
+  if (SHANHAI_MODE) {
+    if (SHANHAI_SEASON_MODE) shStartSeasonCup();
+    else shStartTournament();
+  } else if (SEASON_MODE) startSeasonCup();
   else resetSeason();
 })();
