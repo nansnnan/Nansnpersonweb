@@ -1,10 +1,17 @@
 (() => {
   'use strict';
 
-  const VERSION = 'v1.0.34';
+  const VERSION = 'v1.0.35';
   window.NANSN_SITE_VERSION = VERSION;
 
   const RELEASES = [
+    {
+      version: 'v1.0.35',
+      date: '2026-11-22',
+      items: [
+        '“乐队人生游戏”暂时下线，首页入口已置灰并标记“暂时下线”，不可点击。'
+      ]
+    },
     {
       version: 'v1.0.34',
       date: '2026-11-22',

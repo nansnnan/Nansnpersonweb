@@ -416,6 +416,26 @@ main {
   border-color: transparent;
 }
 
+.card-badge.is-off {
+  margin-top: 0;
+  color: var(--text-faint);
+  background: var(--bg);
+  border-color: var(--line);
+}
+
+.card.is-disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+  filter: saturate(0.55);
+}
+
+.card.is-disabled:hover,
+.card.is-disabled:focus-visible {
+  transform: none;
+  border-color: var(--line);
+  box-shadow: var(--shadow-sm);
+}
+
 .card.is-flash {
   border-color: var(--brand);
   box-shadow: 0 0 0 4px var(--brand-soft);
